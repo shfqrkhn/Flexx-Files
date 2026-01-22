@@ -1,0 +1,161 @@
+/* === VARIABLES === */
+:root {
+    --bg-primary: #050505;
+    --bg-secondary: #121212;
+    --bg-card: #1e1e1e;
+    --text-primary: #f0f0f0;
+    --text-secondary: #a0a0a0;
+    --accent: #ff6b35;
+    --accent-glow: rgba(255, 107, 53, 0.3);
+    --success: #00e676;
+    --warning: #ffea00;
+    --error: #ff1744;
+    --border: #333;
+    --radius-lg: 16px;
+    --radius-sm: 8px;
+    --nav-height: 65px;
+    --safe-area-bottom: env(safe-area-inset-bottom);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* === CORE === */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+body {
+    background: var(--bg-primary); color: var(--text-primary);
+    font-family: var(--font-sans); margin: 0; height: 100vh;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* === LAYOUT === */
+#app { height: 100%; display: flex; flex-direction: column; }
+#main-content { 
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 1rem 1rem calc(var(--nav-height) + 80px) 1rem;
+    scroll-behavior: smooth;
+}
+.container { max-width: 600px; margin: 0 auto; width: 100%; }
+.flex-row { display: flex; align-items: center; }
+
+/* === TYPOGRAPHY === */
+h1 { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 0.5rem 0; }
+h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); }
+h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; }
+.text-xs { font-size: 0.75rem; color: var(--text-secondary); letter-spacing: 0.5px; }
+
+/* === CARDS === */
+.card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem; margin-bottom: 1rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    transition: transform 0.2s;
+}
+.card:active { transform: scale(0.995); }
+
+/* === CONTROLS === */
+.stepper-control {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--bg-secondary); padding: 4px;
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+}
+.stepper-btn {
+    width: 44px; height: 44px; border-radius: var(--radius-sm);
+    border: none; background: var(--bg-card); color: var(--accent);
+    font-size: 1.5rem; font-weight: bold; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.stepper-value {
+    flex: 1; text-align: center; font-size: 1.5rem; font-weight: 700;
+    font-variant-numeric: tabular-nums; background: transparent; border: none; color: white;
+}
+.set-group { display: flex; gap: 8px; margin-top: 12px; }
+.set-btn {
+    flex: 1; height: 48px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--bg-secondary);
+    color: var(--text-secondary); font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease; cursor: pointer;
+}
+.set-btn.completed {
+    background: var(--success); color: #000; border-color: var(--success);
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+}
+
+/* === BUTTONS === */
+.btn-primary {
+    background: var(--accent); color: white; border: none;
+    width: 100%; padding: 1rem; border-radius: var(--radius-lg);
+    font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    box-shadow: 0 4px 15px var(--accent-glow); margin-top: 1rem;
+}
+.btn-secondary {
+    background: var(--bg-secondary); color: var(--text-secondary);
+    width: 100%; padding: 0.75rem; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); font-weight: 600; cursor: pointer;
+}
+.btn-debug {
+    background: #333; color: var(--warning); border: 1px dashed var(--warning);
+    font-family: monospace; font-size: 0.8rem;
+}
+
+/* === TIMER DOCK === */
+.timer-dock {
+    position: fixed; bottom: calc(var(--nav-height) + 10px); 
+    left: 50%; transform: translateX(-50%) translateY(150%);
+    width: 95%; max-width: 580px;
+    background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
+    border: 1px solid var(--accent); border-radius: 50px;
+    padding: 0.75rem 1.5rem;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 500; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+.timer-dock.active { transform: translateX(-50%) translateY(0); }
+.timer-display { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; }
+.timer-skip { color: var(--text-secondary); font-size: 0.875rem; letter-spacing: 1px; cursor: pointer; }
+
+/* === NAVIGATION === */
+.bottom-nav {
+    height: var(--nav-height); background: rgba(5, 5, 5, 0.95);
+    backdrop-filter: blur(10px); border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around; align-items: center;
+    position: fixed; bottom: 0; width: 100%; z-index: 1000;
+    padding-bottom: var(--safe-area-bottom);
+}
+.nav-item {
+    background: none; border: none; color: var(--text-secondary);
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 0.7rem; font-weight: 600; opacity: 0.6; transition: 0.2s;
+}
+.nav-item.active { opacity: 1; color: var(--accent); transform: translateY(-2px); }
+.nav-item .icon { font-size: 1.4rem; }
+
+/* === MODALS === */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+    z-index: 2000; display: flex; align-items: center; justify-content: center;
+    opacity: 0; visibility: hidden; transition: 0.2s ease;
+}
+.modal-overlay.active { opacity: 1; visibility: visible; }
+.modal-box {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1.5rem;
+    width: 90%; max-width: 400px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    transform: scale(0.95) translateY(10px); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.modal-overlay.active .modal-box { transform: scale(1) translateY(0); }
+.modal-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
+.btn-modal { padding: 0.75rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; border: none; cursor: pointer; }
+.btn-confirm { background: var(--accent); color: white; }
+.btn-danger { background: var(--error); color: white; }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+
+/* === UTILS === */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.4s ease-out; }
+.big-check { width: 24px; height: 24px; accent-color: var(--accent); margin-right: 12px; }
+.checkbox-wrapper { display: flex; align-items: center; padding: 1rem; background: var(--bg-secondary); border-radius: var(--radius-sm); margin-bottom: 0.5rem; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
