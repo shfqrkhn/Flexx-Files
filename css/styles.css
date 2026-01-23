@@ -33,7 +33,11 @@
 }
 
 /* === CORE === */
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* Allow text selection for accessibility - only disable on interactive elements */
+button, .nav-item, .stepper-btn, .set-btn { user-select: none; }
+
 body {
     background: var(--bg-primary); color: var(--text-primary);
     font-family: var(--font-sans); margin: 0;
@@ -41,6 +45,12 @@ body {
     height: 100dvh; /* Dynamic viewport height for mobile browsers */
     display: flex; flex-direction: column; overflow: hidden;
     font-size: var(--font-base);
+}
+
+/* Keyboard focus outline for accessibility */
+*:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 /* === LAYOUT === */
@@ -359,4 +369,28 @@ summary:active { transform: scale(0.98); opacity: 0.8; }
     body { height: auto; }
     #main-content { padding: 1rem; overflow: visible; }
     .card { break-inside: avoid; }
+}
+
+/* Accessibility: Reduced motion for users with motion sensitivity */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    /* Keep essential transforms but remove transitions */
+    .card:active { transform: none; }
+    .stepper-btn:active { transform: scale(0.98); transition: none; }
+    .set-btn:active { transform: scale(0.98); transition: none; }
+    .btn-primary:active { transform: none; }
+    .nav-item:active { transform: none; }
+    .nav-item.active { transform: none; }
+    .timer-dock { transition: none; }
+    .modal-overlay { transition: none; }
+    .modal-box { transition: none; transform: none; }
+    .modal-overlay.active .modal-box { transform: none; }
 }

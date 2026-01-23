@@ -67,17 +67,43 @@ const Timer = {
 
 // === RENDER ROUTER ===
 function render() {
-    const main = document.getElementById('main-content');
-    // Update active tab state
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === State.view));
-    
-    main.innerHTML = ''; main.className = 'fade-in';
+    try {
+        const main = document.getElementById('main-content');
+        if (!main) {
+            console.error('Main content element not found');
+            return;
+        }
 
-    switch (State.view) {
-        case 'today': renderToday(main); break;
-        case 'history': renderHistory(main); break;
-        case 'progress': renderProgress(main); break;
-        case 'settings': renderSettings(main); break;
+        // Update active tab state
+        document.querySelectorAll('.nav-item').forEach(el => {
+            el.classList.toggle('active', el.dataset.view === State.view);
+        });
+
+        main.innerHTML = '';
+        main.className = 'fade-in';
+
+        switch (State.view) {
+            case 'today': renderToday(main); break;
+            case 'history': renderHistory(main); break;
+            case 'progress': renderProgress(main); break;
+            case 'settings': renderSettings(main); break;
+            default:
+                console.warn(`Unknown view: ${State.view}`);
+                renderToday(main);
+        }
+    } catch (e) {
+        console.error('Render error:', e);
+        // Try to show error to user
+        const main = document.getElementById('main-content');
+        if (main) {
+            main.innerHTML = `
+                <div class="container">
+                    <div class="card" style="border-color:var(--error)">
+                        <h3>⚠️ Something went wrong</h3>
+                        <p class="text-xs">Please refresh the page. If the problem persists, try exporting your data and clearing the app cache.</p>
+                    </div>
+                </div>`;
+        }
     }
 }
 
@@ -93,17 +119,47 @@ function renderToday(c) {
 function renderRecovery(c) {
     const check = Validator.canStartWorkout();
     if (!check.valid) {
-        c.innerHTML = `<div class="container"><h1>⏸️ Rest Required</h1><div class="card"><p>Next workout in: ${check.hours} hours</p></div></div>`;
+        const nextDate = check.nextAvailable ? Validator.formatDate(check.nextAvailable) : '';
+        c.innerHTML = `
+            <div class="container">
+                <h1>⏸️ Rest Required</h1>
+                <div class="card">
+                    <h3>You need 48 hours between workouts</h3>
+                    <p style="margin-top:1rem; color:var(--text-secondary)">
+                        <strong style="color:var(--accent)">${check.hours} hours</strong> remaining
+                    </p>
+                    ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">Next available: ${nextDate}</p>` : ''}
+                    <p class="text-xs" style="margin-top:1rem; opacity:0.7">Rest is when your muscles grow stronger. Come back when you're fully recovered.</p>
+                </div>
+            </div>`;
         return;
     }
     c.innerHTML = `
         <div class="container">
-            <h1>Ready?</h1>
-            ${check.isFirst ? `<div class="card" style="border-color:var(--accent)"><h3>🎯 First Session</h3><p class="text-xs">Find 12-rep max weights.</p></div>` : ''}
-            ${check.warning ? `<div class="card" style="border-color:var(--warning)"><h3>⚠️ Long Gap</h3><p class="text-xs">Weights -10% safety reset.</p></div>` : ''}
-            <div class="card" onclick="window.setRec('green')"><h3 style="color:var(--success)">Green</h3><p class="text-xs">Full Strength</p></div>
-            <div class="card" onclick="window.setRec('yellow')"><h3 style="color:var(--warning)">Yellow</h3><p class="text-xs">-10% Weight</p></div>
-            <div class="card" onclick="window.setRec('red')"><h3 style="color:var(--error)">Red</h3><p class="text-xs">Stop. Walk only.</p></div>
+            <h1>How do you feel?</h1>
+            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">Your recovery state adjusts recommended weights</p>
+            ${check.isFirst ? `
+                <div class="card" style="border-color:var(--accent)">
+                    <h3>🎯 First Session</h3>
+                    <p class="text-xs">Start conservative. Pick weights you can lift for 12 reps with good form. The app will auto-progress from here.</p>
+                </div>` : ''}
+            ${check.warning ? `
+                <div class="card" style="border-color:var(--warning)">
+                    <h3>⚠️ Long Gap Detected</h3>
+                    <p class="text-xs">It's been ${check.days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.</p>
+                </div>` : ''}
+            <div class="card" onclick="window.setRec('green')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select green recovery status">
+                <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
+                <p class="text-xs">Well rested, feeling strong. Use full recommended weights with normal progression (+5 lbs on success).</p>
+            </div>
+            <div class="card" onclick="window.setRec('yellow')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select yellow recovery status">
+                <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
+                <p class="text-xs">Tired, sore, or stressed. Use 90% of recommended weights. Still effective training, just lower intensity.</p>
+            </div>
+            <div class="card" onclick="window.setRec('red')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select red recovery status">
+                <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
+                <p class="text-xs">Sick, injured, or exhausted. Skip strength training. Take a walk instead. Come back when you feel better.</p>
+            </div>
         </div>`;
 }
 
@@ -258,51 +314,171 @@ function renderSettings(c) {
 
 // === HANDLERS ===
 window.setRec = async (r) => {
-    if (r === 'red') return Modal.show({ title: 'Stop', text: 'Low recovery. Walk only.', danger: true });
+    if (r === 'red') {
+        return Modal.show({
+            title: 'Take a Rest Day',
+            text: 'Your body needs recovery. Strength training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead. Light movement aids recovery without adding stress. Come back when you feel better.',
+            danger: true
+        });
+    }
     State.recovery = r;
     State.activeSession = { id: crypto.randomUUID(), date: new Date().toISOString(), recoveryStatus: r, exercises: [] };
     State.phase = 'warmup';
     render();
 };
 window.modW = (id, d) => {
-    const el = document.getElementById(`w-${id}`);
-    el.value = Math.max(0, parseFloat(el.value) + d);
-    Haptics.light();
+    try {
+        const el = document.getElementById(`w-${id}`);
+        if (!el) {
+            console.error(`Weight input not found: w-${id}`);
+            return;
+        }
+        const currentValue = parseFloat(el.value) || 0;
+        el.value = Math.max(0, currentValue + d);
+        Haptics.light();
+    } catch (e) {
+        console.error('Error modifying weight:', e);
+    }
 };
+
 window.togS = (ex, i, max) => {
-    const el = document.getElementById(`s-${ex}-${i}`);
-    if(el.classList.toggle('completed')) { Haptics.success(); if(i < max-1) Timer.start(); }
+    try {
+        const el = document.getElementById(`s-${ex}-${i}`);
+        if (!el) {
+            console.error(`Set button not found: s-${ex}-${i}`);
+            return;
+        }
+        if(el.classList.toggle('completed')) {
+            Haptics.success();
+            // Auto-start rest timer if not the last set
+            if(i < max-1) Timer.start();
+        }
+    } catch (e) {
+        console.error('Error toggling set:', e);
+    }
 };
+
 window.swapAlt = (id) => {
-    const sel = document.getElementById(`alt-${id}`).value;
-    const cfg = EXERCISES.find(e => e.id === id) || WARMUP.find(w => w.id === id) || DECOMPRESSION.find(d => d.id === id);
-    if (!cfg) return;
-    document.getElementById(`vid-${id}`).href = sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video;
-    document.getElementById(`name-${id}`).innerHTML = sel || cfg.name;
+    try {
+        const selElement = document.getElementById(`alt-${id}`);
+        if (!selElement) {
+            console.error(`Alternative selector not found: alt-${id}`);
+            return;
+        }
+        const sel = selElement.value;
+        const cfg = EXERCISES.find(e => e.id === id) || WARMUP.find(w => w.id === id) || DECOMPRESSION.find(d => d.id === id);
+        if (!cfg) {
+            console.error(`Exercise config not found: ${id}`);
+            return;
+        }
+        const vidElement = document.getElementById(`vid-${id}`);
+        const nameElement = document.getElementById(`name-${id}`);
+
+        if (vidElement) {
+            vidElement.href = sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video;
+        }
+        if (nameElement) {
+            nameElement.innerHTML = sel || cfg.name;
+        }
+    } catch (e) {
+        console.error('Error swapping alternative:', e);
+    }
 };
+
 window.swapCardioLink = () => {
-    const selName = document.getElementById('cardio-type').value;
-    const cfg = CARDIO_OPTIONS.find(o => o.name === selName);
-    if (cfg) document.getElementById('cardio-vid').href = cfg.video;
+    try {
+        const cardioTypeElement = document.getElementById('cardio-type');
+        if (!cardioTypeElement) {
+            console.error('Cardio type selector not found');
+            return;
+        }
+        const selName = cardioTypeElement.value;
+        const cfg = CARDIO_OPTIONS.find(o => o.name === selName);
+        if (cfg) {
+            const vidElement = document.getElementById('cardio-vid');
+            if (vidElement) {
+                vidElement.href = cfg.video;
+            }
+        }
+    } catch (e) {
+        console.error('Error swapping cardio link:', e);
+    }
 };
+
 window.nextPhase = (p) => {
-    if(p === 'lifting') State.activeSession.warmup = WARMUP.map(w => ({ id: w.id, completed: document.getElementById(`w-${w.id}`).checked, altUsed: document.getElementById(`alt-${w.id}`).value }));
-    if(p === 'cardio') State.activeSession.exercises = EXERCISES.map(ex => {
-        const w = parseFloat(document.getElementById(`w-${ex.id}`).value) || 0;
-        const sets = document.querySelectorAll(`#card-${ex.id} .set-btn.completed`).length;
-        const alt = document.getElementById(`alt-${ex.id}`).value;
-        return { id: ex.id, name: ex.name, weight: w, setsCompleted: sets, completed: sets===ex.sets, usingAlternative: !!alt, altName: alt };
-    });
-    if(p === 'decompress') State.activeSession.cardio = { type: document.getElementById('cardio-type').value, completed: document.getElementById('cardio-done').checked };
-    State.phase = p;
-    render();
+    try {
+        if(p === 'lifting') {
+            State.activeSession.warmup = WARMUP.map(w => {
+                const checkElement = document.getElementById(`w-${w.id}`);
+                const altElement = document.getElementById(`alt-${w.id}`);
+                return {
+                    id: w.id,
+                    completed: checkElement ? checkElement.checked : false,
+                    altUsed: altElement ? altElement.value : ''
+                };
+            });
+        }
+
+        if(p === 'cardio') {
+            State.activeSession.exercises = EXERCISES.map(ex => {
+                const weightElement = document.getElementById(`w-${ex.id}`);
+                const w = weightElement ? (parseFloat(weightElement.value) || 0) : 0;
+                const sets = document.querySelectorAll(`#card-${ex.id} .set-btn.completed`).length;
+                const altElement = document.getElementById(`alt-${ex.id}`);
+                const alt = altElement ? altElement.value : '';
+                return {
+                    id: ex.id,
+                    name: ex.name,
+                    weight: w,
+                    setsCompleted: sets,
+                    completed: sets === ex.sets,
+                    usingAlternative: !!alt,
+                    altName: alt
+                };
+            });
+        }
+
+        if(p === 'decompress') {
+            const cardioTypeElement = document.getElementById('cardio-type');
+            const cardioDoneElement = document.getElementById('cardio-done');
+            State.activeSession.cardio = {
+                type: cardioTypeElement ? cardioTypeElement.value : 'Unknown',
+                completed: cardioDoneElement ? cardioDoneElement.checked : false
+            };
+        }
+
+        State.phase = p;
+        render();
+    } catch (e) {
+        console.error('Error transitioning phase:', e);
+        alert('Error saving progress. Please try again.');
+    }
 };
 window.finish = async () => {
-    if(!await Modal.show({ type: 'confirm', title: 'Finish?', text: 'Save this session?' })) return;
-    State.activeSession.decompress = DECOMPRESSION.map(d => ({ id: d.id, val: document.getElementById(`val-${d.id}`)?.value || null, completed: document.getElementById(`done-${d.id}`).checked, altUsed: document.getElementById(`alt-${d.id}`).value }));
-    Storage.saveSession(State.activeSession);
-    State.view = 'history'; State.phase = null; State.recovery = null;
-    render();
+    try {
+        if(!await Modal.show({ type: 'confirm', title: 'Finish?', text: 'Save this session?' })) return;
+
+        State.activeSession.decompress = DECOMPRESSION.map(d => {
+            const valElement = document.getElementById(`val-${d.id}`);
+            const doneElement = document.getElementById(`done-${d.id}`);
+            const altElement = document.getElementById(`alt-${d.id}`);
+            return {
+                id: d.id,
+                val: valElement?.value || null,
+                completed: doneElement ? doneElement.checked : false,
+                altUsed: altElement ? altElement.value : ''
+            };
+        });
+
+        Storage.saveSession(State.activeSession);
+        State.view = 'history';
+        State.phase = null;
+        State.recovery = null;
+        render();
+    } catch (e) {
+        console.error('Error finishing session:', e);
+        alert('Failed to save session. Your data may not be saved. Please try exporting as backup.');
+    }
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
 window.startCardio = () => Timer.start(300);
