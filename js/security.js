@@ -176,7 +176,7 @@ export const CSP = {
     getPolicy() {
         return [
             "default-src 'self'",
-            "script-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline'", // unsafe-inline needed for dynamic styles
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
