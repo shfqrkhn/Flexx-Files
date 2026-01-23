@@ -58,7 +58,7 @@ const Modal = {
 };
 
 // === STATE & TOOLS ===
-const State = { view: 'today', phase: null, recovery: null, activeSession: null };
+const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: 20 };
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -301,7 +301,10 @@ function renderDecompress(c) {
 }
 
 function renderHistory(c) {
-    const s = Storage.getSessions().reverse();
+    const allSessions = Storage.getSessions().slice().reverse();
+    const limit = State.historyLimit || 20;
+    const s = allSessions.slice(0, limit);
+
     c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
@@ -324,7 +327,14 @@ function renderHistory(c) {
                     Decompress: ${Array.isArray(x.decompress) ? (x.decompress.every(d=>d.completed) ? 'Full Session' : 'Partial') : (x.decompress?.completed ? 'Completed' : 'Skipped')}
                 </div>
             </details>
-        </div>`).join('')}</div>`;
+        </div>`).join('')}
+        ${limit < allSessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${allSessions.length - limit} remaining)</button>` : ''}
+        </div>`;
+
+    const loadMoreBtn = c.querySelector('#load-more-btn');
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', window.loadMoreHistory);
+    }
 }
 
 function renderProgress(c) {
@@ -575,6 +585,10 @@ window.finish = async () => {
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
 window.startCardio = () => Timer.start(300);
+window.loadMoreHistory = () => {
+    State.historyLimit = (State.historyLimit || 20) + 20;
+    render();
+};
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
 window.imp = (el) => { const r = new FileReader(); r.onload = e => Storage.importData(e.target.result); if(el.files[0]) r.readAsText(el.files[0]); };
@@ -623,6 +637,9 @@ window.drawChart = (id) => {
 document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const target = e.target.closest('.nav-item');
+        if (target.dataset.view === 'history' && State.view !== 'history') {
+            State.historyLimit = 20;
+        }
         State.view = target.dataset.view;
         render();
     });
