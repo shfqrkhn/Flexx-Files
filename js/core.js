@@ -232,15 +232,21 @@ export const Storage = {
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
 
+            // Create a new array instance to ensure cache invalidation for consumers
+            // relying on array identity (like Calculator's WeakMap)
+            let newSessions;
             if (existingIndex !== -1) {
-                // Update existing session in place
-                sessions[existingIndex] = session;
+                // Update existing session
+                newSessions = [...sessions];
+                newSessions[existingIndex] = session;
             } else {
                 // Add new session
-                sessions.push(session);
+                newSessions = [...sessions, session];
             }
 
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            // Update cache and storage with the new array
+            this._sessionCache = newSessions;
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
 
             // Commit transaction
             if (!this.Transaction.commit()) {
@@ -367,6 +373,35 @@ export const Storage = {
 };
 
 export const Calculator = {
+    // Optimization: Cache expensive lookups keyed by sessions array instance
+    _cache: new WeakMap(),
+
+    _ensureCache(sessions) {
+        if (this._cache.has(sessions)) return this._cache.get(sessions);
+
+        // O(N) pass to build O(1) lookup map
+        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise }>
+
+        for (const session of sessions) {
+            for (const ex of session.exercises) {
+                if (ex.skipped || ex.usingAlternative) continue;
+
+                if (!lookup.has(ex.id)) {
+                    lookup.set(ex.id, { last: null, lastCompleted: null });
+                }
+                const entry = lookup.get(ex.id);
+
+                entry.last = ex;
+                if (ex.completed) {
+                    entry.lastCompleted = ex;
+                }
+            }
+        }
+
+        this._cache.set(sessions, lookup);
+        return lookup;
+    },
+
     getRecommendedWeight(exerciseId, recoveryStatus, sessions) {
         if (!sessions) sessions = Storage.getSessions();
         if (sessions.length === 0) return 0;
@@ -411,19 +446,15 @@ export const Calculator = {
     },
 
     getLastExercise(exerciseId, sessions) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) return ex;
-        }
-        return null;
+        const cache = this._ensureCache(sessions);
+        const entry = cache.get(exerciseId);
+        return entry ? entry.last : null;
     },
 
     getLastCompletedExercise(exerciseId, sessions) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && ex.completed && !ex.skipped && !ex.usingAlternative) return ex;
-        }
-        return null;
+        const cache = this._ensureCache(sessions);
+        const entry = cache.get(exerciseId);
+        return entry ? entry.lastCompleted : null;
     },
 
     getPlateLoad(weight) {
