@@ -232,15 +232,20 @@ export const Storage = {
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
 
+            // Create a shallow copy for immutability
+            const newSessions = [...sessions];
+
             if (existingIndex !== -1) {
                 // Update existing session in place
-                sessions[existingIndex] = session;
+                newSessions[existingIndex] = session;
             } else {
                 // Add new session
-                sessions.push(session);
+                newSessions.push(session);
             }
 
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
+            // Update cache to point to the new array
+            this._sessionCache = newSessions;
 
             // Commit transaction
             if (!this.Transaction.commit()) {
@@ -251,7 +256,7 @@ export const Storage = {
             this.clearDraft();
 
             // Auto-export every N sessions as backup
-            if (sessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(sessions);
+            if (newSessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(newSessions);
 
             console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
             return session;
@@ -367,6 +372,32 @@ export const Storage = {
 };
 
 export const Calculator = {
+    // Performance Optimization: Cache exercise indices by sessions array reference
+    _indexCache: new WeakMap(),
+
+    _getIndex(sessions) {
+        if (this._indexCache.has(sessions)) {
+            return this._indexCache.get(sessions);
+        }
+
+        const index = new Map();
+        // Iterate through all sessions to build the index
+        // We preserve order: index.get(id) will contain exercises in chronological order
+        for (const session of sessions) {
+            if (!session.exercises || !Array.isArray(session.exercises)) continue;
+            for (const ex of session.exercises) {
+                if (!ex.id) continue;
+                if (!index.has(ex.id)) {
+                    index.set(ex.id, []);
+                }
+                index.get(ex.id).push(ex);
+            }
+        }
+
+        this._indexCache.set(sessions, index);
+        return index;
+    },
+
     getRecommendedWeight(exerciseId, recoveryStatus, sessions) {
         if (!sessions) sessions = Storage.getSessions();
         if (sessions.length === 0) return 0;
@@ -400,10 +431,15 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
+        const index = this._getIndex(sessions);
+        const history = index.get(exerciseId);
+
+        if (!history) return false;
+
         const recent = [];
-        for (let i = sessions.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) recent.push(ex);
+        for (let i = history.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
+            const ex = history[i];
+            if (!ex.skipped && !ex.usingAlternative) recent.push(ex);
         }
         if (recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
         // Stall detected if all recent attempts failed at same weight
