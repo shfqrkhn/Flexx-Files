@@ -169,8 +169,7 @@ const ErrorTracker = {
                 message: event.message,
                 filename: event.filename,
                 lineno: event.lineno,
-                colno: event.colno,
-                stack: event.error?.stack
+                colno: event.colno
             });
         });
 
