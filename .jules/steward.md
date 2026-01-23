@@ -1,5 +1,26 @@
 # The Black Box Journal
 
+## 2026-01-23 - [🛡️ Sentinel] - Insufficient URL Protocol Validation
+
+**Insight:** The `Sanitizer.sanitizeURL()` function relied solely on `new URL()` parsing followed by protocol allowlist checking. This created bypass vulnerabilities through encoding attacks (e.g., `java\tscript:`, `java\nscript:`) and dangerous data URIs that could execute code when users clicked video links. The function protects 15+ call sites throughout the app—a single bypass point with wide blast radius.
+
+**Protocol:**
+- ALWAYS perform pre-validation of URL protocols BEFORE URL parsing using regex extraction
+- Normalize whitespace and control characters (`\x00-\x1F\x7F`) that could hide malicious protocols
+- Use lowercase protocol matching to prevent case-sensitivity bypasses
+- Maintain explicit denylist of dangerous protocols: `javascript`, `data`, `vbscript`, `file`, `about`
+- Double-check protocol after parsing (defense-in-depth)
+- Return normalized `parsed.href` instead of raw input to prevent residual encoding issues
+
+**Files Modified:**
+- `js/security.js:67-105` - Enhanced sanitizeURL with pre-validation and normalization
+- `tests/mocks.mjs:56-62` - Fixed URL constructor mock for test compatibility
+- `tests/url_sanitization.test.js` - Added 18-test suite covering encoding bypasses
+
+**Verification:** All 18 URL sanitization tests pass; dangerous protocols blocked before parsing; encoding bypasses prevented.
+
+---
+
 ## 2026-01-23 - [🛡️ Sentinel] - Missing Session Validation in saveSession()
 
 **Insight:** The `saveSession()` function in core.js performed NO validation on session data before persisting to localStorage. It immediately executed `.reduce()` on `session.exercises` (line 228) without verifying the session structure, required fields, or data types. This created a critical integrity gap where malformed or malicious session objects could corrupt storage or crash the application.

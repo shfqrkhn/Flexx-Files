@@ -46,16 +46,23 @@ export function setupMocks() {
         value: {
             platform: 'Node.js',
             onLine: true,
-            vibrate: () => {}
+            vibrate: () => {},
+            userAgent: 'Node.js Test Environment'
         },
         writable: true,
         configurable: true
     });
 
-    // Mock URL
-    global.URL = {
-        createObjectURL: (blob) => `blob:${blob.size}`,
-        revokeObjectURL: (url) => {}
+    // Mock URL - use native URL constructor for parsing, but mock static methods
+    // Note: Node.js has native URL support, so we keep the constructor
+    const OriginalURL = global.URL;
+    global.URL = class URL extends OriginalURL {
+        static createObjectURL(blob) {
+            return `blob:${blob.size}`;
+        }
+        static revokeObjectURL(url) {
+            // No-op
+        }
     };
 
     // Mock Blob
