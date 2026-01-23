@@ -126,6 +126,47 @@ export const Validator = {
             }
         }
 
+        // Validate optional warmup field
+        if (session.warmup) {
+            if (!Array.isArray(session.warmup)) {
+                return { valid: false, errors: ['Warmup must be an array'] };
+            }
+            // Check elements are objects with id and completed
+            for (const [i, w] of session.warmup.entries()) {
+                if (typeof w !== 'object' || !w || typeof w.id !== 'string' || typeof w.completed !== 'boolean') {
+                    return { valid: false, errors: [`Warmup item ${i} invalid`] };
+                }
+            }
+        }
+
+        // Validate optional cardio field
+        if (session.cardio) {
+            if (typeof session.cardio !== 'object') {
+                return { valid: false, errors: ['Cardio must be an object'] };
+            }
+            if (typeof session.cardio.type !== 'string' || typeof session.cardio.completed !== 'boolean') {
+                return { valid: false, errors: ['Cardio object invalid'] };
+            }
+        }
+
+        // Validate optional decompress field
+        if (session.decompress) {
+            // Can be array or object (legacy)
+            if (Array.isArray(session.decompress)) {
+                for (const [i, d] of session.decompress.entries()) {
+                    if (typeof d !== 'object' || !d || typeof d.id !== 'string' || typeof d.completed !== 'boolean') {
+                        return { valid: false, errors: [`Decompress item ${i} invalid`] };
+                    }
+                }
+            } else if (typeof session.decompress === 'object') {
+                if (typeof session.decompress.completed !== 'boolean') {
+                    return { valid: false, errors: ['Decompress object invalid'] };
+                }
+            } else {
+                return { valid: false, errors: ['Decompress must be array or object'] };
+            }
+        }
+
         return { valid: true, errors: [] };
     },
 

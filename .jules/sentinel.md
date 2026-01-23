@@ -7,3 +7,8 @@
 **Vulnerability:** XSS via `localStorage` import. The validation logic (`Validator`) checked the session structure but failed to validate nested objects (exercises) recursively. Additionally, `Storage.importData` implemented its own weak validation instead of using the central `Validator`.
 **Learning:** Shallow validation is insufficient for complex data structures. Also, "Don't Repeat Yourself" (DRY) is a security principle—duplicated validation logic often leads to one version being weaker than the other.
 **Prevention:** Recursively validate all nested objects. Centralize validation logic in a single module and enforce its use across all data entry points (UI, API, Import).
+
+## 2024-10-24 - Incomplete Nested Object Validation
+**Vulnerability:** `Validator.validateSession` validated the main `exercises` array but ignored other nested structures (`warmup`, `cardio`, `decompress`). This allowed malformed data (e.g., strings instead of arrays) to be imported, potentially causing runtime crashes or future injection vulnerabilities.
+**Learning:** Partial validation of complex schemas creates blind spots. Validation logic must explicitly cover ALL fields in the schema, including optional ones, to ensure complete data integrity.
+**Prevention:** Implement comprehensive schema validation that recursively validates every nested object and array, ensuring strict type checking for all properties.
