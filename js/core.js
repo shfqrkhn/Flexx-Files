@@ -414,8 +414,8 @@ export const Storage = {
 };
 
 export const Calculator = {
-    getRecommendedWeight(exerciseId, recoveryStatus) {
-        const sessions = Storage.getSessions();
+    getRecommendedWeight(exerciseId, recoveryStatus, sessions) {
+        if (!sessions) sessions = Storage.getSessions();
         if (sessions.length === 0) return 0;
 
         const base = this.getBaseRecommendation(exerciseId, sessions);
