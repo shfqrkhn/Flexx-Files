@@ -1,5 +1,6 @@
 import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
+import { Validator as SecurityValidator } from './security.js';
 
 export const Storage = {
     KEYS: {
@@ -335,23 +336,15 @@ export const Storage = {
     importData(jsonString) {
         try {
             const data = JSON.parse(jsonString);
+
+            // Use Security Validator
+            const validation = SecurityValidator.validateImportData(data);
+            if (!validation.valid) {
+                alert(`Invalid file:\n${validation.errors.join('\n')}`);
+                return;
+            }
+
             const sessions = Array.isArray(data) ? data : data.sessions;
-
-            // Validate data structure
-            if (!Array.isArray(sessions)) {
-                alert('Invalid file format: sessions must be an array');
-                return;
-            }
-
-            // Validate each session has required fields
-            const invalidSessions = sessions.filter(s =>
-                !s.id || !s.date || !s.exercises || !Array.isArray(s.exercises)
-            );
-
-            if (invalidSessions.length > 0) {
-                alert(`Invalid file: ${invalidSessions.length} sessions are missing required fields (id, date, exercises)`);
-                return;
-            }
 
             if (confirm(`Import ${sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
                 localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
