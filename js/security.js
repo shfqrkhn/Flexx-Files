@@ -114,6 +114,18 @@ export const Validator = {
             return { valid: false, errors: ['Exercises must be an array'] };
         }
 
+        // Validate each exercise in the array
+        for (const [index, exercise] of session.exercises.entries()) {
+            const result = this.validateExercise(exercise);
+            if (!result.valid) {
+                Logger.error('Invalid session: invalid exercise', { index, errors: result.errors });
+                return {
+                    valid: false,
+                    errors: [`Exercise ${index + 1}: ${result.errors.join(', ')}`]
+                };
+            }
+        }
+
         return { valid: true, errors: [] };
     },
 
