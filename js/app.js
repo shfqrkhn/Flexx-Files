@@ -206,14 +206,14 @@ function renderWarmup(c) {
         ${WARMUP.map(w => `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                    <div class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto;">
+                    <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
                         <input type="checkbox" class="big-check" id="w-${w.id}">
                         <div><div id="name-${w.id}">${w.name}</div><div class="text-xs">${w.reps}</div></div>
-                    </div>
-                    <a id="vid-${w.id}" href="${w.video}" target="_blank" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;">🎥</a>
+                    </label>
+                    <a id="vid-${w.id}" href="${w.video}" target="_blank" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${w.name}">🎥</a>
                 </div>
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                    <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);">
+                    <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
                         <option value="">${w.name}</option>
                         ${w.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
                     </select>
@@ -245,17 +245,17 @@ function renderLifting(c) {
                         <a id="vid-${ex.id}" href="${ex.video}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a>
                     </div>
                     <div class="stepper-control">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)">−</button>
-                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)">+</button>
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${ex.name}">−</button>
+                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${ex.name}">
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${ex.name}">+</button>
                     </div>
-                    <div class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)">${Calculator.getPlateLoad(w)} / side</div>
-                    <div class="set-group">
-                        ${Array.from({length:ex.sets},(_,i)=>`<div class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})">${i+1}</div>`).join('')}
+                    <div class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
+                    <div class="set-group" role="group" aria-label="Sets for ${ex.name}">
+                        ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
                     </div>
                     <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs">Alternatives</summary>
-                        <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none">
+                        <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none" aria-label="Select alternative for ${ex.name}">
                             <option value="">${ex.name}</option>
                             ${ex.alternatives.map(a=>`<option value="${a}">${a}</option>`).join('')}
                         </select>
@@ -271,9 +271,9 @@ function renderCardio(c) {
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${defaultLink}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a></div>
-            <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
+            <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
             <button class="btn btn-secondary" onclick="window.startCardio()">Start 5m Timer</button>
-            <div class="checkbox-wrapper" style="margin-top:1rem"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></div>
+            <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></label>
         </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')">Next: Decompress</button></div>`;
 }
 
@@ -286,11 +286,11 @@ function renderDecompress(c) {
                         <h3 id="name-${d.id}">${d.name}</h3>
                         <a id="vid-${d.id}" href="${d.video}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a>
                     </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <div class="checkbox-wrapper"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></div>
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
                     <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);">
+                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
                             <option value="">Default</option>
                             ${d.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
                         </select>
@@ -408,7 +408,10 @@ window.togS = (ex, i, max) => {
             console.error(`Set button not found: s-${ex}-${i}`);
             return;
         }
-        if(el.classList.toggle('completed')) {
+        const isCompleted = el.classList.toggle('completed');
+        el.setAttribute('aria-pressed', isCompleted);
+
+        if(isCompleted) {
             Haptics.success();
             // Auto-start rest timer if not the last set
             if(i < max-1) Timer.start();
