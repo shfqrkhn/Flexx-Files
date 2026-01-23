@@ -2,7 +2,183 @@ import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
 
 export const Storage = {
-    KEYS: { SESSIONS: 'flexx_sessions_v3', PREFS: 'flexx_prefs' },
+    KEYS: {
+        SESSIONS: 'flexx_sessions_v3',
+        PREFS: 'flexx_prefs',
+        MIGRATION_VERSION: 'flexx_migration_version',
+        BACKUP: 'flexx_backup_snapshot',
+        DRAFT: 'flexx_draft_session'
+    },
+
+    /**
+     * ATOMIC TRANSACTION SYSTEM
+     * Provides rollback capability for safe data operations
+     */
+    Transaction: {
+        inProgress: false,
+        snapshot: null,
+
+        begin() {
+            if (this.inProgress) {
+                console.warn('Transaction already in progress');
+                return false;
+            }
+
+            try {
+                // Create snapshot of current data
+                const sessions = Storage.getSessions();
+                this.snapshot = JSON.parse(JSON.stringify(sessions));
+                this.inProgress = true;
+                console.log('Transaction started', { sessionCount: sessions.length });
+                return true;
+            } catch (e) {
+                console.error('Failed to begin transaction:', e);
+                return false;
+            }
+        },
+
+        commit() {
+            if (!this.inProgress) {
+                console.warn('No transaction in progress');
+                return false;
+            }
+
+            try {
+                // Transaction successful, clear snapshot
+                this.snapshot = null;
+                this.inProgress = false;
+                console.log('Transaction committed');
+                return true;
+            } catch (e) {
+                console.error('Failed to commit transaction:', e);
+                this.rollback();
+                return false;
+            }
+        },
+
+        rollback() {
+            if (!this.inProgress || !this.snapshot) {
+                console.warn('No transaction to rollback');
+                return false;
+            }
+
+            try {
+                // Restore from snapshot
+                localStorage.setItem(Storage.KEYS.SESSIONS, JSON.stringify(this.snapshot));
+                this.snapshot = null;
+                this.inProgress = false;
+                console.log('Transaction rolled back');
+                return true;
+            } catch (e) {
+                console.error('CRITICAL: Failed to rollback transaction:', e);
+                return false;
+            }
+        }
+    },
+
+    /**
+     * Save draft session for recovery
+     */
+    saveDraft(session) {
+        try {
+            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
+            console.log('Draft saved', { sessionId: session.id });
+            return true;
+        } catch (e) {
+            console.error('Failed to save draft:', e);
+            return false;
+        }
+    },
+
+    /**
+     * Load draft session
+     */
+    loadDraft() {
+        try {
+            const draft = localStorage.getItem(this.KEYS.DRAFT);
+            return draft ? JSON.parse(draft) : null;
+        } catch (e) {
+            console.error('Failed to load draft:', e);
+            return null;
+        }
+    },
+
+    /**
+     * Clear draft session
+     */
+    clearDraft() {
+        try {
+            localStorage.removeItem(this.KEYS.DRAFT);
+            console.log('Draft cleared');
+            return true;
+        } catch (e) {
+            console.error('Failed to clear draft:', e);
+            return false;
+        }
+    },
+
+    /**
+     * Schema Migration System
+     * Handles safe transitions between storage versions
+     */
+    getCurrentMigrationVersion() {
+        return localStorage.getItem(this.KEYS.MIGRATION_VERSION) || 'v3';
+    },
+
+    setMigrationVersion(version) {
+        localStorage.setItem(this.KEYS.MIGRATION_VERSION, version);
+    },
+
+    runMigrations() {
+        const currentVersion = this.getCurrentMigrationVersion();
+        console.log(`Current migration version: ${currentVersion}`);
+
+        // If we're already on the latest version, no migration needed
+        if (currentVersion === CONST.STORAGE_VERSION) {
+            return;
+        }
+
+        try {
+            // Run migrations in sequence
+            if (currentVersion === 'v3' && CONST.STORAGE_VERSION === 'v4') {
+                this.migrateV3toV4();
+            }
+            // Add more migration paths here as needed
+            // if (currentVersion === 'v4' && CONST.STORAGE_VERSION === 'v5') {
+            //     this.migrateV4toV5();
+            // }
+
+            // Update migration version after successful migration
+            this.setMigrationVersion(CONST.STORAGE_VERSION);
+            console.log(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
+        } catch (e) {
+            console.error('Migration failed:', e);
+            alert(`Data migration failed. Your data is safe but may need manual export/import. Error: ${e.message}`);
+        }
+    },
+
+    /**
+     * Example migration: v3 to v4
+     * Currently a no-op since we're still on v3
+     * This demonstrates the pattern for future migrations
+     */
+    migrateV3toV4() {
+        console.log('Running v3 -> v4 migration');
+        const sessions = this.getSessions();
+
+        // Example migration logic:
+        // Add new fields, rename fields, transform data, etc.
+        const migratedSessions = sessions.map(session => {
+            // Future: Add any new required fields
+            // if (!session.newField) {
+            //     session.newField = defaultValue;
+            // }
+            return session;
+        });
+
+        localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(migratedSessions));
+        console.log(`Migrated ${migratedSessions.length} sessions`);
+    },
 
     getSessions() {
         try {
@@ -19,10 +195,29 @@ export const Storage = {
     },
 
     saveSession(session) {
+        // Start atomic transaction
+        if (!this.Transaction.begin()) {
+            console.error('Could not start transaction for saveSession');
+            throw new Error('Transaction failed to start');
+        }
+
         try {
             const sessions = this.getSessions();
-            session.sessionNumber = sessions.length + 1;
-            session.weekNumber = Math.ceil(session.sessionNumber / 3);
+
+            // IDEMPOTENCY CHECK: Prevent duplicate saves of the same session
+            // If a session with this ID already exists, update it instead of creating a duplicate
+            const existingIndex = sessions.findIndex(s => s.id === session.id);
+            if (existingIndex !== -1) {
+                console.warn(`Session ${session.id} already exists. Updating instead of creating duplicate.`);
+                // Update existing session
+                session.sessionNumber = sessions[existingIndex].sessionNumber;
+                session.weekNumber = sessions[existingIndex].weekNumber;
+            } else {
+                // New session: assign numbers
+                session.sessionNumber = sessions.length + 1;
+                session.weekNumber = Math.ceil(session.sessionNumber / 3);
+            }
+
             session.totalVolume = session.exercises.reduce((sum, ex) => {
                 if (ex.skipped || ex.usingAlternative) return sum;
                 // Look up the exercise config to get the prescribed reps
@@ -31,14 +226,33 @@ export const Storage = {
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
 
-            sessions.push(session);
+            if (existingIndex !== -1) {
+                // Update existing session in place
+                sessions[existingIndex] = session;
+            } else {
+                // Add new session
+                sessions.push(session);
+            }
+
             localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+
+            // Commit transaction
+            if (!this.Transaction.commit()) {
+                throw new Error('Transaction commit failed');
+            }
+
+            // Clear draft after successful save
+            this.clearDraft();
 
             // Auto-export every N sessions as backup
             if (sessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(sessions);
+
+            console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {
             console.error('Failed to save session:', e);
+            // Rollback transaction on error
+            this.Transaction.rollback();
             alert('Failed to save workout. Please try exporting your data.');
             throw e; // Re-throw so caller knows it failed
         }

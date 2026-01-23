@@ -1,5 +1,9 @@
 import { EXERCISES, WARMUP, DECOMPRESSION, CARDIO_OPTIONS, RECOVERY_CONFIG } from './config.js';
 import { Storage, Calculator, Validator } from './core.js';
+import { Observability, Logger, Metrics, Analytics } from './observability.js';
+import { Accessibility, ScreenReader } from './accessibility.js';
+import { Security, Sanitizer } from './security.js';
+import { I18n, DateFormatter } from './i18n.js';
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -10,6 +14,19 @@ const Modal = {
     resolve: null,
     show(opts) {
         return new Promise((resolve) => {
+            // Null checks for modal elements
+            if (!this.el || !this.title || !this.body || !this.actions) {
+                console.error('Modal elements not found in DOM');
+                // Fallback to native alert/confirm
+                if (opts.type === 'confirm') {
+                    resolve(confirm(opts.text || opts.title || 'Confirm?'));
+                } else {
+                    alert(opts.text || opts.title || 'Notice');
+                    resolve(true);
+                }
+                return;
+            }
+
             this.resolve = resolve;
             this.title.innerText = opts.title || 'Notice';
             opts.html ? this.body.innerHTML = opts.html : this.body.innerText = opts.text || '';
@@ -30,6 +47,11 @@ const Modal = {
         });
     },
     close(res) {
+        if (!this.el) {
+            console.error('Modal element not found');
+            if (this.resolve) this.resolve(res);
+            return;
+        }
         this.el.classList.remove('active');
         if (this.resolve) this.resolve(res);
     }
@@ -48,7 +70,12 @@ const Timer = {
     start(sec = 90) {
         if (this.interval) clearInterval(this.interval);
         this.endTime = Date.now() + (sec * 1000);
-        document.getElementById('timer-dock').classList.add('active');
+        const timerDock = document.getElementById('timer-dock');
+        if (!timerDock) {
+            console.error('Timer dock element not found');
+            return;
+        }
+        timerDock.classList.add('active');
         this.tick();
         this.interval = setInterval(() => this.tick(), 1000);
     },
@@ -57,11 +84,21 @@ const Timer = {
         if (rem <= 0) { this.stop(); Haptics.success(); return; }
         const m = Math.floor(rem / 60);
         const s = rem % 60;
-        document.getElementById('timer-val').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+        const timerVal = document.getElementById('timer-val');
+        if (!timerVal) {
+            console.error('Timer value element not found');
+            return;
+        }
+        timerVal.textContent = `${m}:${s.toString().padStart(2,'0')}`;
     },
     stop() {
         if (this.interval) clearInterval(this.interval);
-        document.getElementById('timer-dock').classList.remove('active');
+        const timerDock = document.getElementById('timer-dock');
+        if (!timerDock) {
+            console.error('Timer dock element not found');
+            return;
+        }
+        timerDock.classList.remove('active');
     }
 };
 
@@ -314,16 +351,33 @@ function renderSettings(c) {
 
 // === HANDLERS ===
 window.setRec = async (r) => {
+    Metrics.mark('recovery-select-start');
+
     if (r === 'red') {
+        Logger.info('Red recovery selected - workout skipped', { recovery: r });
+        Analytics.track('recovery_selected', { status: 'red', action: 'skipped' });
+        ScreenReader.announce('Red recovery status selected. Rest day recommended.');
         return Modal.show({
             title: 'Take a Rest Day',
             text: 'Your body needs recovery. Strength training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead. Light movement aids recovery without adding stress. Come back when you feel better.',
             danger: true
         });
     }
+
     State.recovery = r;
-    State.activeSession = { id: crypto.randomUUID(), date: new Date().toISOString(), recoveryStatus: r, exercises: [] };
+    State.activeSession = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        recoveryStatus: r,
+        exercises: []
+    };
     State.phase = 'warmup';
+
+    Logger.info('Workout started', { recovery: r, sessionId: State.activeSession.id });
+    Analytics.track('recovery_selected', { status: r });
+    ScreenReader.announce(`${r === 'green' ? 'Full strength' : 'Reduced weight'} recovery selected. Starting warmup.`);
+
+    Metrics.measure('recovery-select', 'recovery-select-start');
     render();
 };
 window.modW = (id, d) => {
@@ -448,8 +502,20 @@ window.nextPhase = (p) => {
         }
 
         State.phase = p;
+        Logger.info('Phase transition', { from: State.phase, to: p });
+        Analytics.track('phase_transition', { phase: p });
+
+        const phaseNames = {
+            warmup: 'Warmup',
+            lifting: 'Lifting',
+            cardio: 'Cardio',
+            decompress: 'Decompression'
+        };
+        ScreenReader.announce(`Starting ${phaseNames[p] || p} phase`);
+
         render();
     } catch (e) {
+        Logger.error('Error transitioning phase', { phase: p, error: e.message });
         console.error('Error transitioning phase:', e);
         alert('Error saving progress. Please try again.');
     }
@@ -470,13 +536,40 @@ window.finish = async () => {
             };
         });
 
-        Storage.saveSession(State.activeSession);
+        Metrics.mark('session-save-start');
+        const savedSession = Storage.saveSession(State.activeSession);
+
+        Logger.info('Session completed', {
+            sessionId: savedSession.id,
+            sessionNumber: savedSession.sessionNumber,
+            totalVolume: savedSession.totalVolume,
+            recovery: savedSession.recoveryStatus
+        });
+
+        Analytics.track('session_completed', {
+            sessionNumber: savedSession.sessionNumber,
+            weekNumber: savedSession.weekNumber,
+            recovery: savedSession.recoveryStatus,
+            exercises: savedSession.exercises.length
+        });
+
+        const saveTime = Metrics.measure('session-save', 'session-save-start');
+        Logger.debug('Session save performance', { duration: `${saveTime?.toFixed(2)}ms` });
+
+        ScreenReader.announce(`Workout completed successfully. Session ${savedSession.sessionNumber} saved.`, 'assertive');
+
         State.view = 'history';
         State.phase = null;
         State.recovery = null;
         render();
     } catch (e) {
+        Logger.error('Failed to save session', {
+            sessionId: State.activeSession?.id,
+            error: e.message,
+            stack: e.stack
+        });
         console.error('Error finishing session:', e);
+        ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
         alert('Failed to save session. Your data may not be saved. Please try exporting as backup.');
     }
 };
@@ -490,23 +583,40 @@ window.debugUnlock = () => { if(confirm('Force unlock rest timer?')) Storage.unl
 
 // === SVG CHARTING ===
 window.drawChart = (id) => {
-    const s = Storage.getSessions().filter(x=>x.exercises.find(e=>e.id===id && !e.usingAlternative));
-    const div = document.getElementById('chart-area');
-    if(s.length < 2) return div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
-    const data = s.map(x=>({d:new Date(x.date), v:x.exercises.find(e=>e.id===id).weight}));
-    const max = Math.max(...data.map(d=>d.v)) * 1.1;
-    const min = Math.min(...data.map(d=>d.v)) * 0.9;
-    const W = div.clientWidth || 300;
-    const H = Math.max(200, Math.min(300, W * 0.6));
-    const P = 20;
-    const X = i => P + (i/(data.length-1)) * (W-P*2);
-    const Y = v => H - (P + ((v-min)/(max-min)) * (H-P*2));
-    let path = `M ${X(0)} ${Y(data[0].v)}`;
-    data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
-    div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}">
-        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
-        ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
-    </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
+    try {
+        const div = document.getElementById('chart-area');
+        if (!div) {
+            console.error('Chart area element not found');
+            return;
+        }
+
+        const s = Storage.getSessions().filter(x=>x.exercises.find(e=>e.id===id && !e.usingAlternative));
+        if(s.length < 2) {
+            div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
+            return;
+        }
+
+        const data = s.map(x=>({d:new Date(x.date), v:x.exercises.find(e=>e.id===id).weight}));
+        const max = Math.max(...data.map(d=>d.v)) * 1.1;
+        const min = Math.min(...data.map(d=>d.v)) * 0.9;
+        const W = div.clientWidth || 300;
+        const H = Math.max(200, Math.min(300, W * 0.6));
+        const P = 20;
+        const X = i => P + (i/(data.length-1)) * (W-P*2);
+        const Y = v => H - (P + ((v-min)/(max-min)) * (H-P*2));
+        let path = `M ${X(0)} ${Y(data[0].v)}`;
+        data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
+        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}">
+            <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
+            ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
+        </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
+    } catch (e) {
+        console.error('Error drawing chart:', e);
+        const div = document.getElementById('chart-area');
+        if (div) {
+            div.innerHTML = '<p style="padding:1rem;color:var(--error)">Error rendering chart.</p>';
+        }
+    }
 };
 
 // === GLOBAL EVENT LISTENERS ===
@@ -518,4 +628,88 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     });
 });
 
-render();
+// === INITIALIZATION ===
+// Initialize all mission-critical systems
+(async function initializeSystems() {
+    // Mark performance start
+    Metrics.mark('app-init-start');
+
+    // 1. Initialize observability first (for logging other initializations)
+    Observability.init();
+    Logger.info('🚀 Flexx Files v3.9 - Mission-Critical Mode');
+
+    // 2. Initialize security system
+    Security.init();
+    Logger.info('Security system active');
+
+    // 3. Initialize accessibility system
+    Accessibility.init();
+    Logger.info('Accessibility system active (WCAG 2.1 AA)');
+
+    // 4. Initialize internationalization
+    I18n.init();
+    Logger.info('i18n system active', { locale: I18n.currentLocale });
+
+    // 5. Run database migrations
+    Storage.runMigrations();
+    Logger.info('Database migrations complete');
+
+    // 6. Check for draft recovery
+    const draft = Storage.loadDraft();
+    if (draft) {
+        const restore = await Modal.show({
+            type: 'confirm',
+            title: 'Recover Session?',
+            text: `Found unsaved session from ${DateFormatter.relative(draft.date)}. Restore it?`
+        });
+        if (restore) {
+            State.activeSession = draft;
+            State.recovery = draft.recoveryStatus;
+            State.phase = 'lifting'; // Resume at lifting phase
+            Logger.info('Draft session restored', { id: draft.id });
+            ScreenReader.announce('Previous session recovered successfully');
+        } else {
+            Storage.clearDraft();
+            Logger.info('Draft session discarded');
+        }
+    }
+
+    // 7. Register service worker for offline capability
+    if ('serviceWorker' in navigator) {
+        try {
+            await navigator.serviceWorker.register('/sw.js');
+            Logger.info('Service worker registered');
+        } catch (e) {
+            Logger.warn('Service worker registration failed', { error: e.message });
+        }
+    }
+
+    // 8. Track app startup
+    Analytics.track('app_start', {
+        version: '3.9',
+        platform: navigator.platform,
+        online: navigator.onLine
+    });
+
+    // Measure initialization time
+    const initTime = Metrics.measure('app-init', 'app-init-start');
+    Logger.info('App initialized', {
+        duration: `${initTime?.toFixed(2)}ms`,
+        sessions: Storage.getSessions().length
+    });
+
+    // 9. Render the app
+    render();
+
+    // 10. Auto-save drafts every 30 seconds if session is active
+    setInterval(() => {
+        if (State.activeSession) {
+            Storage.saveDraft(State.activeSession);
+            Logger.debug('Draft auto-saved', { id: State.activeSession.id });
+        }
+    }, 30000); // 30 seconds
+
+})().catch(error => {
+    console.error('Fatal initialization error:', error);
+    alert('Failed to initialize app. Please refresh the page.');
+});
