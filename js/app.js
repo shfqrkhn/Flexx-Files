@@ -29,7 +29,7 @@ const Modal = {
 
             this.resolve = resolve;
             this.title.innerText = opts.title || 'Notice';
-            opts.html ? this.body.innerHTML = opts.html : this.body.innerText = opts.text || '';
+            opts.html ? this.body.innerHTML = Sanitizer.sanitizeHTML(opts.html) : this.body.innerText = opts.text || '';
             this.actions.innerHTML = '';
             if (opts.type === 'confirm') {
                 const cancel = document.createElement('button');
