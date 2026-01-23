@@ -301,7 +301,7 @@ function renderDecompress(c) {
 }
 
 function renderHistory(c) {
-    const s = Storage.getSessions().reverse();
+    const s = Storage.getSessions().slice().reverse();
     c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">

@@ -10,6 +10,10 @@ export const Storage = {
         DRAFT: 'flexx_draft_session'
     },
 
+    // Cache for sessions to avoid parsing JSON on every read
+    _cache: null,
+    _cacheStr: null,
+
     /**
      * ATOMIC TRANSACTION SYSTEM
      * Provides rollback capability for safe data operations
@@ -184,9 +188,20 @@ export const Storage = {
         try {
             const data = localStorage.getItem(this.KEYS.SESSIONS);
             if (!data) return [];
+
+            // Return cached version if data hasn't changed
+            if (this._cache && this._cacheStr === data) {
+                return this._cache;
+            }
+
             const sessions = JSON.parse(data);
             // Validate it's an array
-            return Array.isArray(sessions) ? sessions : [];
+            if (Array.isArray(sessions)) {
+                this._cache = sessions;
+                this._cacheStr = data;
+                return sessions;
+            }
+            return [];
         } catch (e) {
             console.error('Failed to load sessions:', e);
             // Return empty array if corrupted, don't lose everything
@@ -414,6 +429,37 @@ export const Storage = {
 };
 
 export const Calculator = {
+    // Cache for last exercise lookups
+    // WeakMap<Array(sessions), { valid: Map, completed: Map }>
+    _indexCache: new WeakMap(),
+
+    _ensureIndex(sessions) {
+        if (!this._indexCache.has(sessions)) {
+            const index = {
+                valid: new Map(),
+                completed: new Map()
+            };
+
+            // Build index by iterating forwards
+            // Later entries overwrite earlier ones, so we get the last occurrence
+            for (const session of sessions) {
+                if (!session.exercises || !Array.isArray(session.exercises)) continue;
+
+                for (const ex of session.exercises) {
+                    if (ex.skipped || ex.usingAlternative) continue;
+
+                    index.valid.set(ex.id, ex);
+
+                    if (ex.completed) {
+                        index.completed.set(ex.id, ex);
+                    }
+                }
+            }
+            this._indexCache.set(sessions, index);
+        }
+        return this._indexCache.get(sessions);
+    },
+
     getRecommendedWeight(exerciseId, recoveryStatus) {
         const sessions = Storage.getSessions();
         if (sessions.length === 0) return 0;
@@ -447,6 +493,9 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
+        // Stall detection still needs recent history, so we keep the loop
+        // Optimization: We could potentially cache the list of recent attempts too,
+        // but since we only need small N (3), the loop is fine.
         const recent = [];
         for (let i = sessions.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
             const ex = sessions[i].exercises.find(e => e.id === exerciseId);
@@ -458,19 +507,13 @@ export const Calculator = {
     },
 
     getLastExercise(exerciseId, sessions) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) return ex;
-        }
-        return null;
+        const index = this._ensureIndex(sessions);
+        return index.valid.get(exerciseId) || null;
     },
 
     getLastCompletedExercise(exerciseId, sessions) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && ex.completed && !ex.skipped && !ex.usingAlternative) return ex;
-        }
-        return null;
+        const index = this._ensureIndex(sessions);
+        return index.completed.get(exerciseId) || null;
     },
 
     getPlateLoad(weight) {
