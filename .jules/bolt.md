@@ -5,3 +5,7 @@
 ## 2025-05-25 - [Array Cloning in List Rendering]
 **Learning:** `array.slice().reverse()` creates a full copy of the array. For large datasets (e.g., 5000+ sessions), this O(N) operation causes significant GC pressure and latency (120ms vs 1.5ms) just to render the top 20 items.
 **Action:** Use reverse iteration (`for (let i=len-1; i>=0; i--)`) to extract only the needed items (O(limit)) instead of transforming the entire dataset.
+
+## 2026-01-23 - [Chained Array Methods in Hot Paths]
+**Learning:** `filter().map()` chains iterate the dataset multiple times and create intermediate arrays. For large datasets in hot paths (like chart rendering), this causes noticeable lag.
+**Action:** Collapse into a single `for` loop or `reduce` to extract data and compute aggregates (min/max) in one pass.

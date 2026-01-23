@@ -607,15 +607,35 @@ window.drawChart = (id) => {
             return;
         }
 
-        const s = Storage.getSessions().filter(x=>x.exercises.find(e=>e.id===id && !e.usingAlternative));
-        if(s.length < 2) {
+        // Optimization: Single pass O(N) instead of filter/map chaining O(3N)
+        const sessions = Storage.getSessions();
+        const data = [];
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+
+        for (let i = 0; i < sessions.length; i++) {
+            const exercises = sessions[i].exercises;
+            for (let j = 0; j < exercises.length; j++) {
+                const ex = exercises[j];
+                if (ex.id === id) {
+                    if (!ex.usingAlternative) {
+                        const v = ex.weight;
+                        data.push({d: new Date(sessions[i].date), v});
+                        if (v < minVal) minVal = v;
+                        if (v > maxVal) maxVal = v;
+                    }
+                    break; // Stop looking in this session
+                }
+            }
+        }
+
+        if (data.length < 2) {
             div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
             return;
         }
 
-        const data = s.map(x=>({d:new Date(x.date), v:x.exercises.find(e=>e.id===id).weight}));
-        const max = Math.max(...data.map(d=>d.v)) * 1.1;
-        const min = Math.min(...data.map(d=>d.v)) * 0.9;
+        const max = maxVal * 1.1;
+        const min = minVal * 0.9;
         const W = div.clientWidth || 300;
         const H = Math.max(200, Math.min(300, W * 0.6));
         const P = 20;
