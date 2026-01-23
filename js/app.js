@@ -725,14 +725,47 @@ document.querySelectorAll('.nav-item').forEach(btn => {
         }
     }
 
-    // 7. Register service worker for offline capability
+    // 7. Register service worker for offline capability with update detection
     if ('serviceWorker' in navigator) {
         try {
-            await navigator.serviceWorker.register('/sw.js');
+            const registration = await navigator.serviceWorker.register('/sw.js');
             Logger.info('Service worker registered');
+
+            // Listen for updates
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        // New service worker available - notify user
+                        showUpdateNotification(newWorker);
+                    }
+                });
+            });
+
+            // Detect controller change (update applied)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!window.__reloading) {
+                    window.__reloading = true;
+                    window.location.reload();
+                }
+            });
         } catch (e) {
             Logger.warn('Service worker registration failed', { error: e.message });
         }
+    }
+
+    // Update notification handler
+    function showUpdateNotification(worker) {
+        Modal.show({
+            title: '✨ Update Available',
+            text: 'A new version of Flexx Files is ready. Reload to apply the latest improvements and fixes.',
+            type: 'confirm',
+            okText: 'Reload Now'
+        }).then(reload => {
+            if (reload) {
+                worker.postMessage({ type: 'SKIP_WAITING' });
+            }
+        });
     }
 
     // 8. Track app startup
