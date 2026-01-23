@@ -1,66 +1,139 @@
 import { EXERCISES } from './config.js';
+import * as CONST from './constants.js';
 
 export const Storage = {
     KEYS: { SESSIONS: 'flexx_sessions_v3', PREFS: 'flexx_prefs' },
 
     getSessions() {
-        return JSON.parse(localStorage.getItem(this.KEYS.SESSIONS) || '[]');
+        try {
+            const data = localStorage.getItem(this.KEYS.SESSIONS);
+            if (!data) return [];
+            const sessions = JSON.parse(data);
+            // Validate it's an array
+            return Array.isArray(sessions) ? sessions : [];
+        } catch (e) {
+            console.error('Failed to load sessions:', e);
+            // Return empty array if corrupted, don't lose everything
+            return [];
+        }
     },
 
     saveSession(session) {
-        const sessions = this.getSessions();
-        session.sessionNumber = sessions.length + 1;
-        session.weekNumber = Math.ceil(session.sessionNumber / 3);
-        session.totalVolume = session.exercises.reduce((sum, ex) => {
-            if (ex.skipped || ex.usingAlternative) return sum;
-            return sum + (ex.weight * ex.setsCompleted * ex.prescribedReps);
-        }, 0);
-        
-        sessions.push(session);
-        localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
-        
-        if (sessions.length % 5 === 0) this.autoExport(sessions);
-        return session;
+        try {
+            const sessions = this.getSessions();
+            session.sessionNumber = sessions.length + 1;
+            session.weekNumber = Math.ceil(session.sessionNumber / 3);
+            session.totalVolume = session.exercises.reduce((sum, ex) => {
+                if (ex.skipped || ex.usingAlternative) return sum;
+                // Look up the exercise config to get the prescribed reps
+                const cfg = EXERCISES.find(e => e.id === ex.id);
+                const reps = cfg ? cfg.reps : 0;
+                return sum + (ex.weight * ex.setsCompleted * reps);
+            }, 0);
+
+            sessions.push(session);
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+
+            // Auto-export every N sessions as backup
+            if (sessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(sessions);
+            return session;
+        } catch (e) {
+            console.error('Failed to save session:', e);
+            alert('Failed to save workout. Please try exporting your data.');
+            throw e; // Re-throw so caller knows it failed
+        }
     },
 
     deleteSession(id) {
-        let sessions = this.getSessions();
-        sessions = sessions.filter(s => s.id !== id);
-        localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+        try {
+            let sessions = this.getSessions();
+            const beforeCount = sessions.length;
+            sessions = sessions.filter(s => s.id !== id);
+
+            if (sessions.length === beforeCount) {
+                console.warn(`Session ${id} not found`);
+                return false;
+            }
+
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            return true;
+        } catch (e) {
+            console.error('Failed to delete session:', e);
+            alert('Failed to delete session. Please try again.');
+            return false;
+        }
     },
 
     exportData() {
-        const sessions = this.getSessions();
-        const data = { version: '3.8', exportDate: new Date().toISOString(), sessions };
-        // Windows Safe Filename (No colons)
-        const safeDate = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `flexx-files-backup-${safeDate}.json`;
-        a.click();
-        URL.revokeObjectURL(a.href);
+        try {
+            const sessions = this.getSessions();
+            const data = {
+                version: CONST.APP_VERSION,
+                exportDate: new Date().toISOString(),
+                sessions
+            };
+            // Windows Safe Filename (No colons)
+            const safeDate = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `flexx-files-backup-${safeDate}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        } catch (e) {
+            console.error('Export error:', e);
+            alert(CONST.ERROR_MESSAGES.EXPORT_FAILED);
+        }
     },
 
     autoExport(sessions) {
-        const data = { version: '3.8', type: 'auto', sessions };
-        const safeDate = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `flexx-files-auto-${safeDate}.json`;
-        a.click();
+        try {
+            const data = {
+                version: CONST.APP_VERSION,
+                type: 'auto',
+                sessions
+            };
+            const safeDate = new Date().toISOString().replace(/:/g, '-').split('.')[0];
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `flexx-files-auto-${safeDate}.json`;
+            a.click();
+        } catch (e) {
+            console.error('Auto-export error:', e);
+            // Don't alert for auto-export failures, just log
+        }
     },
 
     importData(jsonString) {
         try {
             const data = JSON.parse(jsonString);
             const sessions = Array.isArray(data) ? data : data.sessions;
-            if (confirm(`Import ${sessions.length} sessions? Overwrites current data.`)) {
+
+            // Validate data structure
+            if (!Array.isArray(sessions)) {
+                alert('Invalid file format: sessions must be an array');
+                return;
+            }
+
+            // Validate each session has required fields
+            const invalidSessions = sessions.filter(s =>
+                !s.id || !s.date || !s.exercises || !Array.isArray(s.exercises)
+            );
+
+            if (invalidSessions.length > 0) {
+                alert(`Invalid file: ${invalidSessions.length} sessions are missing required fields (id, date, exercises)`);
+                return;
+            }
+
+            if (confirm(`Import ${sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
                 localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
                 window.location.reload();
             }
-        } catch (e) { alert('Invalid File'); }
+        } catch (e) {
+            console.error('Import error:', e);
+            alert(`Invalid file: ${e.message}\n\nPlease ensure this is a valid Flexx Files backup file.`);
+        }
     },
 
     reset() {
@@ -68,22 +141,38 @@ export const Storage = {
         window.location.reload();
     },
 
-    // === DEBUG TOOLS ===
+    // === DEBUG TOOLS (only available in development) ===
+    // To enable: Add ?debug=true to URL or set localStorage.debug = 'true'
+    isDebugMode() {
+        return localStorage.getItem('debug') === 'true' ||
+               new URLSearchParams(window.location.search).get('debug') === 'true' ||
+               window.location.hostname === 'localhost';
+    },
+
     generateDummyData() {
+        if (!this.isDebugMode()) {
+            console.warn('Debug tools disabled in production');
+            return;
+        }
         const s = [];
-        const start = Date.now() - (30 * 24 * 60 * 60 * 1000);
-        for(let i=0; i<8; i++) {
-            const date = new Date(start + (i * 3 * 24 * 60 * 60 * 1000));
+        const start = Date.now() - (CONST.DUMMY_DATA_DAYS_BACK * 24 * 60 * 60 * 1000);
+
+        for(let i=0; i<CONST.DUMMY_DATA_SESSIONS; i++) {
+            const date = new Date(start + (i * CONST.SESSIONS_PER_WEEK * 24 * 60 * 60 * 1000));
             s.push({
                 id: crypto.randomUUID(),
                 date: date.toISOString(),
                 sessionNumber: i+1,
-                weekNumber: Math.ceil((i+1)/3),
-                recoveryStatus: i % 4 === 0 ? 'yellow' : 'green',
+                weekNumber: Math.ceil((i+1) / CONST.SESSIONS_PER_WEEK),
+                recoveryStatus: i % 4 === 0 ? CONST.RECOVERY_STATES.YELLOW : CONST.RECOVERY_STATES.GREEN,
                 warmup: [],
                 exercises: EXERCISES.map(e => ({
-                    id: e.id, name: e.name, weight: 45 + (i * 5),
-                    setsCompleted: 3, completed: true, skipped: false
+                    id: e.id,
+                    name: e.name,
+                    weight: CONST.OLYMPIC_BAR_WEIGHT_LBS + (i * CONST.WEIGHT_INCREMENT_LBS),
+                    setsCompleted: 3,
+                    completed: true,
+                    skipped: false
                 })),
                 cardio: { type: 'Rower', completed: true },
                 decompress: []
@@ -94,12 +183,18 @@ export const Storage = {
     },
 
     unlockRest() {
+        if (!this.isDebugMode()) {
+            console.warn('Debug tools disabled in production');
+            return;
+        }
         const s = this.getSessions();
         if(s.length > 0) {
-            // Backdate last session to 3 days ago to force unlock
-            s[s.length-1].date = new Date(Date.now() - (73 * 60 * 60 * 1000)).toISOString();
+            // Backdate last session to bypass rest requirement
+            s[s.length-1].date = new Date(Date.now() - (CONST.DEBUG_REST_UNLOCK_HOURS * 60 * 60 * 1000)).toISOString();
             localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(s));
             window.location.reload();
+        } else {
+            console.warn('No sessions to unlock');
         }
     }
 };
@@ -108,36 +203,43 @@ export const Calculator = {
     getRecommendedWeight(exerciseId, recoveryStatus) {
         const sessions = Storage.getSessions();
         if (sessions.length === 0) return 0;
-        
+
         const base = this.getBaseRecommendation(exerciseId, sessions);
-        const factor = recoveryStatus === 'yellow' ? 0.9 : 1.0;
+        const factor = recoveryStatus === CONST.RECOVERY_STATES.YELLOW ?
+            CONST.YELLOW_RECOVERY_MULTIPLIER : 1.0;
         let w = base * factor;
-        return parseFloat((Math.round(w / 2.5) * 2.5).toFixed(1));
+        return parseFloat((Math.round(w / CONST.STEPPER_INCREMENT_LBS) * CONST.STEPPER_INCREMENT_LBS).toFixed(1));
     },
 
     getBaseRecommendation(exerciseId, sessions) {
-        const week = Math.ceil((sessions.length + 1) / 3);
-        if (week > 0 && week % 6 === 0) { // Deload
+        const week = Math.ceil((sessions.length + 1) / CONST.SESSIONS_PER_WEEK);
+
+        // Deload every N weeks
+        if (week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0) {
             const last = this.getLastCompletedExercise(exerciseId, sessions);
-            return last ? last.weight * 0.6 : 45;
+            return last ? last.weight * CONST.DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
         }
-        if (this.detectStall(exerciseId, sessions)) { // Stall
+
+        // Stall detection: reduce weight if failing repeatedly
+        if (this.detectStall(exerciseId, sessions)) {
             const last = this.getLastExercise(exerciseId, sessions);
-            return last ? last.weight * 0.9 : 45;
+            return last ? last.weight * CONST.STALL_DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
         }
-        // Progression
+
+        // Normal progression: add weight on success
         const last = this.getLastExercise(exerciseId, sessions);
-        if (!last) return 45;
-        return last.completed ? last.weight + 5 : last.weight;
+        if (!last) return CONST.OLYMPIC_BAR_WEIGHT_LBS;
+        return last.completed ? last.weight + CONST.WEIGHT_INCREMENT_LBS : last.weight;
     },
 
     detectStall(exerciseId, sessions) {
         const recent = [];
-        for (let i = sessions.length - 1; i >= 0 && recent.length < 3; i--) {
+        for (let i = sessions.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
             const ex = sessions[i].exercises.find(e => e.id === exerciseId);
             if (ex && !ex.skipped && !ex.usingAlternative) recent.push(ex);
         }
-        if (recent.length < 3) return false;
+        if (recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
+        // Stall detected if all recent attempts failed at same weight
         return recent.every(e => !e.completed && e.weight === recent[0].weight);
     },
 
@@ -158,13 +260,16 @@ export const Calculator = {
     },
 
     getPlateLoad(weight) {
-        if (weight < 45) return 'Use DBs / Fixed Bar';
-        const target = (weight - 45) / 2;
+        // Calculate plates needed for each side of barbell
+        if (weight < CONST.OLYMPIC_BAR_WEIGHT_LBS) return 'Use DBs / Fixed Bar';
+        const target = (weight - CONST.OLYMPIC_BAR_WEIGHT_LBS) / 2; // Each side gets half
         if (target <= 0) return 'Empty Bar';
-        const plates = [45, 35, 25, 10, 5, 2.5];
+
         const load = [];
         let rem = target;
-        for (let p of plates) {
+
+        // Greedy algorithm: use largest plates first
+        for (let p of CONST.AVAILABLE_PLATES) {
             while (rem >= p) {
                 load.push(p);
                 rem -= p;
@@ -178,12 +283,47 @@ export const Validator = {
     canStartWorkout() {
         const sessions = Storage.getSessions();
         if (sessions.length === 0) return { valid: true, isFirst: true };
-        const hours = (Date.now() - new Date(sessions[sessions.length - 1].date)) / 3600000;
-        if (hours < 48) return { valid: false, hours: Math.ceil(48 - hours) };
-        if (hours > 168) return { valid: true, warning: true, days: Math.floor(hours/24) };
+
+        const lastSession = sessions[sessions.length - 1];
+        if (!lastSession || !lastSession.date) {
+            console.warn('Last session missing date');
+            return { valid: true, warning: true };
+        }
+
+        const hours = (Date.now() - new Date(lastSession.date)) / 3600000;
+
+        // Require minimum rest period
+        if (hours < CONST.REST_PERIOD_HOURS) {
+            return {
+                valid: false,
+                hours: Math.ceil(CONST.REST_PERIOD_HOURS - hours),
+                nextAvailable: new Date(Date.now() + ((CONST.REST_PERIOD_HOURS - hours) * 3600000))
+            };
+        }
+
+        // Warn if it's been more than a week
+        if (hours > CONST.WEEK_WARNING_HOURS) {
+            return {
+                valid: true,
+                warning: true,
+                days: Math.floor(hours / 24),
+                message: 'Long gap since last workout'
+            };
+        }
+
         return { valid: true };
     },
+
     formatDate(d) {
-        return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        try {
+            return new Date(d).toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch (e) {
+            console.error('Date formatting error:', e);
+            return 'Invalid Date';
+        }
     }
 };
