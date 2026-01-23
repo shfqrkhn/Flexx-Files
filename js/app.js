@@ -120,7 +120,7 @@ function renderWarmup(c) {
                     <a id="vid-${w.id}" href="${w.video}" target="_blank" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;">🎥</a>
                 </div>
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                    <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:4px;">
+                    <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);">
                         <option value="">${w.name}</option>
                         ${w.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
                     </select>
@@ -135,7 +135,7 @@ function renderLifting(c) {
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
                 <h1>Lifting</h1>
-                <span class="text-xs" style="border:1px solid #333; padding:4px 8px; border-radius:12px">${State.recovery.toUpperCase()}</span>
+                <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
             </div>
             ${EXERCISES.map(ex => {
                 const w = Calculator.getRecommendedWeight(ex.id, State.recovery);
@@ -197,7 +197,7 @@ function renderDecompress(c) {
                     <div class="checkbox-wrapper"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></div>
                     <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:4px;">
+                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);">
                             <option value="">Default</option>
                             ${d.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
                         </select>
@@ -212,8 +212,8 @@ function renderHistory(c) {
     c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
-                <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid #333; padding:2px 6px; border-radius:4px">${x.recoveryStatus.toUpperCase()}</span></div>
-                <button class="btn btn-secondary" style="width:auto; padding:4px 12px" onclick="window.del('${x.id}')">✕</button>
+                <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${x.recoveryStatus.toUpperCase()}</span></div>
+                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id}')">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
@@ -223,7 +223,7 @@ function renderHistory(c) {
                 ${x.exercises.map(e => {
                      // Name Display Fix
                      const displayName = e.altName || e.name || EXERCISES.find(cfg=>cfg.id===e.id)?.name || e.id;
-                     return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:4px; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
+                     return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
                 }).join('')}
                 <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
                 <div class="text-xs">
@@ -235,7 +235,7 @@ function renderHistory(c) {
 }
 
 function renderProgress(c) {
-    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:200px"></div></div></div>`;
+    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
     setTimeout(()=>window.drawChart('hinge'),100);
 }
 
@@ -320,15 +320,17 @@ window.drawChart = (id) => {
     const data = s.map(x=>({d:new Date(x.date), v:x.exercises.find(e=>e.id===id).weight}));
     const max = Math.max(...data.map(d=>d.v)) * 1.1;
     const min = Math.min(...data.map(d=>d.v)) * 0.9;
-    const H=200, W=div.clientWidth || 300, P=20;
+    const W = div.clientWidth || 300;
+    const H = Math.max(200, Math.min(300, W * 0.6));
+    const P = 20;
     const X = i => P + (i/(data.length-1)) * (W-P*2);
     const Y = v => H - (P + ((v-min)/(max-min)) * (H-P*2));
     let path = `M ${X(0)} ${Y(data[0].v)}`;
     data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
     div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}">
-        <path d="${path}" fill="none" stroke="#ff6b35" stroke-width="3"/>
-        ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="#121212" stroke="#ff6b35" stroke-width="2"/>`).join('')}
-    </svg><div class="flex-row" style="justify-content:space-between; margin-top:5px; font-size:0.7rem; color:#666"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
+        ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
+    </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
 };
 
 // === GLOBAL EVENT LISTENERS ===
