@@ -301,9 +301,13 @@ function renderDecompress(c) {
 }
 
 function renderHistory(c) {
-    const allSessions = Storage.getSessions().slice().reverse();
+    // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
+    const sessions = Storage.getSessions();
     const limit = State.historyLimit || 20;
-    const s = allSessions.slice(0, limit);
+    const s = [];
+    for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
+        s.push(sessions[i]);
+    }
 
     c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
         <div class="card">
@@ -329,7 +333,7 @@ function renderHistory(c) {
                 </div>
             </details>
         </div>`).join('')}
-        ${limit < allSessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${allSessions.length - limit} remaining)</button>` : ''}
+        ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
         </div>`;
 
     const loadMoreBtn = c.querySelector('#load-more-btn');
