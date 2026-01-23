@@ -185,18 +185,18 @@ function renderRecovery(c) {
                     <h3>⚠️ Long Gap Detected</h3>
                     <p class="text-xs">It's been ${check.days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.</p>
                 </div>` : ''}
-            <div class="card" onclick="window.setRec('green')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select green recovery status">
+            <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select green recovery status">
                 <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
                 <p class="text-xs">Well rested, feeling strong. Use full recommended weights with normal progression (+5 lbs on success).</p>
-            </div>
-            <div class="card" onclick="window.setRec('yellow')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select yellow recovery status">
+            </button>
+            <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select yellow recovery status">
                 <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
                 <p class="text-xs">Tired, sore, or stressed. Use 90% of recommended weights. Still effective training, just lower intensity.</p>
-            </div>
-            <div class="card" onclick="window.setRec('red')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select red recovery status">
+            </button>
+            <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select red recovery status">
                 <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
                 <p class="text-xs">Sick, injured, or exhausted. Skip strength training. Take a walk instead. Come back when you feel better.</p>
-            </div>
+            </button>
         </div>`;
 }
 
@@ -242,7 +242,7 @@ function renderLifting(c) {
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${ex.name}</h2>
                             <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${ex.video}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a>
+                        <a id="vid-${ex.id}" href="${ex.video}" target="_blank" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${ex.name}">🎥</a>
                     </div>
                     <div class="stepper-control">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${ex.name}">−</button>
@@ -270,7 +270,7 @@ function renderCardio(c) {
     const defaultLink = CARDIO_OPTIONS[0].video;
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${defaultLink}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a></div>
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${defaultLink}" target="_blank" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${CARDIO_OPTIONS[0].name}">🎥</a></div>
             <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
             <button class="btn btn-secondary" onclick="window.startCardio()">Start 5m Timer</button>
             <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></label>
@@ -284,7 +284,7 @@ function renderDecompress(c) {
                 <div class="card">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                         <h3 id="name-${d.id}">${d.name}</h3>
-                        <a id="vid-${d.id}" href="${d.video}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a>
+                        <a id="vid-${d.id}" href="${d.video}" target="_blank" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
                     </div>
                     ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
                     <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
@@ -309,7 +309,7 @@ function renderHistory(c) {
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id.replace(/['"\\]/g, '')}')">✕</button>
+                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id.replace(/['"\\]/g, '')}')" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
@@ -439,6 +439,7 @@ window.swapAlt = (id) => {
 
         if (vidElement) {
             vidElement.href = sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video;
+            vidElement.setAttribute('aria-label', `Watch video for ${sel || cfg.name}`);
         }
         if (nameElement) {
             nameElement.innerHTML = sel || cfg.name;
@@ -461,6 +462,7 @@ window.swapCardioLink = () => {
             const vidElement = document.getElementById('cardio-vid');
             if (vidElement) {
                 vidElement.href = cfg.video;
+                vidElement.setAttribute('aria-label', `Watch video for ${cfg.name}`);
             }
         }
     } catch (e) {
