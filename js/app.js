@@ -224,6 +224,7 @@ function renderWarmup(c) {
 
 function renderLifting(c) {
     const sessions = Storage.getSessions();
+    const recommendedWeights = Calculator.getAllRecommendations(State.recovery);
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
@@ -231,7 +232,7 @@ function renderLifting(c) {
                 <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
             </div>
             ${EXERCISES.map(ex => {
-                const w = Calculator.getRecommendedWeight(ex.id, State.recovery);
+                const w = recommendedWeights[ex.id];
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
                 return `

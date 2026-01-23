@@ -414,47 +414,75 @@ export const Storage = {
 };
 
 export const Calculator = {
-    getRecommendedWeight(exerciseId, recoveryStatus) {
+    getAllRecommendations(recoveryStatus) {
         const sessions = Storage.getSessions();
-        if (sessions.length === 0) return 0;
+        const recommendations = {};
 
-        const base = this.getBaseRecommendation(exerciseId, sessions);
-        const factor = recoveryStatus === CONST.RECOVERY_STATES.YELLOW ?
-            CONST.YELLOW_RECOVERY_MULTIPLIER : 1.0;
-        let w = base * factor;
-        return parseFloat((Math.round(w / CONST.STEPPER_INCREMENT_LBS) * CONST.STEPPER_INCREMENT_LBS).toFixed(1));
-    },
+        if (sessions.length === 0) {
+            for (const ex of EXERCISES) {
+                recommendations[ex.id] = 0;
+            }
+            return recommendations;
+        }
 
-    getBaseRecommendation(exerciseId, sessions) {
+        // 1. Build history for all exercises in one pass
+        const historyMap = new Map();
+        for (const ex of EXERCISES) {
+            historyMap.set(ex.id, []);
+        }
+
+        for (const session of sessions) {
+            for (const exercise of session.exercises) {
+                if (historyMap.has(exercise.id) && !exercise.skipped && !exercise.usingAlternative) {
+                    historyMap.get(exercise.id).push(exercise);
+                }
+            }
+        }
+
+        // 2. Calculate recommendation for each exercise
         const week = Math.ceil((sessions.length + 1) / CONST.SESSIONS_PER_WEEK);
+        const isDeloadWeek = week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0;
 
-        // Deload every N weeks
-        if (week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0) {
-            const last = this.getLastCompletedExercise(exerciseId, sessions);
-            return last ? last.weight * CONST.DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
+        for (const ex of EXERCISES) {
+            const exerciseId = ex.id;
+            const history = historyMap.get(exerciseId);
+            let base = CONST.OLYMPIC_BAR_WEIGHT_LBS;
+
+            if (history.length > 0) {
+                const lastExercise = history[history.length - 1];
+
+                if (isDeloadWeek) {
+                    const lastCompletedExercise = history.slice().reverse().find(e => e.completed);
+                    base = lastCompletedExercise ? lastCompletedExercise.weight * CONST.DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
+                } else {
+                    // Stall detection
+                    const recentHistory = history.slice(-CONST.STALL_DETECTION_SESSIONS);
+                    let isStall = false;
+                    if (recentHistory.length === CONST.STALL_DETECTION_SESSIONS) {
+                        isStall = recentHistory.every(e => !e.completed && e.weight === recentHistory[0].weight);
+                    }
+
+                    if (isStall) {
+                        base = lastExercise.weight * CONST.STALL_DELOAD_PERCENTAGE;
+                    } else {
+                        // Normal progression
+                        base = lastExercise.completed ? lastExercise.weight + CONST.WEIGHT_INCREMENT_LBS : lastExercise.weight;
+                    }
+                }
+            }
+
+            const factor = recoveryStatus === CONST.RECOVERY_STATES.YELLOW ?
+                CONST.YELLOW_RECOVERY_MULTIPLIER : 1.0;
+            let w = base * factor;
+            recommendations[exerciseId] = parseFloat((Math.round(w / CONST.STEPPER_INCREMENT_LBS) * CONST.STEPPER_INCREMENT_LBS).toFixed(1));
         }
 
-        // Stall detection: reduce weight if failing repeatedly
-        if (this.detectStall(exerciseId, sessions)) {
-            const last = this.getLastExercise(exerciseId, sessions);
-            return last ? last.weight * CONST.STALL_DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
-        }
-
-        // Normal progression: add weight on success
-        const last = this.getLastExercise(exerciseId, sessions);
-        if (!last) return CONST.OLYMPIC_BAR_WEIGHT_LBS;
-        return last.completed ? last.weight + CONST.WEIGHT_INCREMENT_LBS : last.weight;
+        return recommendations;
     },
 
-    detectStall(exerciseId, sessions) {
-        const recent = [];
-        for (let i = sessions.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) recent.push(ex);
-        }
-        if (recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
-        // Stall detected if all recent attempts failed at same weight
-        return recent.every(e => !e.completed && e.weight === recent[0].weight);
+    getRecommendedWeight(exerciseId, recoveryStatus) {
+        const recommendations = this.getAllRecommendations(recoveryStatus);
+        return recommendations[exerciseId] || 0;
     },
 
     getLastExercise(exerciseId, sessions) {
