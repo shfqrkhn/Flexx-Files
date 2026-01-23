@@ -158,7 +158,7 @@ export const Storage = {
             console.log(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
         } catch (e) {
             console.error('Migration failed:', e);
-            alert(`Data migration failed. Your data is safe but may need manual export/import. Error: ${e.message}`);
+            alert('Data migration failed. Your data is safe but may need manual export/import.');
         }
     },
 
@@ -353,7 +353,7 @@ export const Storage = {
             }
         } catch (e) {
             console.error('Import error:', e);
-            alert(`Invalid file: ${e.message}\n\nPlease ensure this is a valid Flexx Files backup file.`);
+            alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
         }
     },
 
