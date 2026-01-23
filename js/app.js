@@ -353,7 +353,7 @@ function renderSettings(c) {
             <h1>Settings</h1>
             <div class="card">
                 <button class="btn btn-secondary" onclick="Storage.exportData()">Backup Data</button>
-                <div style="position:relative; margin-top:0.5rem"><button class="btn btn-secondary">Restore Data</button><input type="file" onchange="window.imp(this)" style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%"></div>
+                <div style="position:relative; margin-top:0.5rem"><button class="btn btn-secondary" tabindex="-1" aria-hidden="true">Restore Data</button><input type="file" onchange="window.imp(this)" onfocus="this.previousElementSibling.style.outline='2px solid var(--accent)';this.previousElementSibling.style.outlineOffset='2px'" onblur="this.previousElementSibling.style.outline='none'" aria-label="Restore Data" style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%"></div>
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()">Factory Reset</button>
             </div>
         </div>`;

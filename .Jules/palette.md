@@ -5,3 +5,7 @@
 ## 2024-05-24 - Dynamic ARIA Labels in Vanilla JS
 **Learning:** In apps using direct DOM manipulation for state changes (like `innerHTML` replacement or attribute swapping), static ARIA labels become stale when content changes (e.g., swapping exercise videos).
 **Action:** Always update associated accessibility attributes (`aria-label`, `aria-expanded`, etc.) within the same JavaScript handlers that update the visual content to ensure screen readers remain in sync.
+
+## 2024-10-24 - Accessible File Input Overlays
+**Learning:** "Fake" file inputs (opacity: 0 input over styled button) often break accessibility by hiding visual focus and lacking labels.
+**Action:** When using this pattern, ensure the hidden input has `aria-label`, the visible button is removed from tab order (`tabindex="-1"` `aria-hidden="true"`), and use JS to mirror the input's focus state to the button.
