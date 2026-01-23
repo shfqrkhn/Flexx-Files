@@ -12,3 +12,8 @@
 **Vulnerability:** `Validator.validateSession` validated the main `exercises` array but ignored other nested structures (`warmup`, `cardio`, `decompress`). This allowed malformed data (e.g., strings instead of arrays) to be imported, potentially causing runtime crashes or future injection vulnerabilities.
 **Learning:** Partial validation of complex schemas creates blind spots. Validation logic must explicitly cover ALL fields in the schema, including optional ones, to ensure complete data integrity.
 **Prevention:** Implement comprehensive schema validation that recursively validates every nested object and array, ensuring strict type checking for all properties.
+
+## 2026-01-23 - XSS via innerHTML in UI Event Handlers
+**Vulnerability:** XSS in `swapAlt()` function (app.js:460) used `innerHTML` to update exercise names when users selected alternatives. While the dropdown values came from configuration, using `innerHTML` with any controllable data creates attack vectors through localStorage corruption or future code changes that allow user-defined alternatives.
+**Learning:** Having a `Sanitizer` module doesn't prevent XSS if developers bypass it. Simple text updates should ALWAYS use `textContent` instead of `innerHTML`. The principle: "Never use innerHTML unless you're intentionally rendering HTML" - and even then, always sanitize.
+**Prevention:** Use `textContent` for all text-only updates. Reserve `innerHTML` exclusively for cases where HTML rendering is required, and enforce sanitization at those points. Add linting rules to flag unsafe `innerHTML` usage.

@@ -457,7 +457,7 @@ window.swapAlt = (id) => {
             vidElement.setAttribute('aria-label', `Watch video for ${sel || cfg.name}`);
         }
         if (nameElement) {
-            nameElement.innerHTML = sel || cfg.name;
+            nameElement.textContent = sel || cfg.name;
         }
     } catch (e) {
         console.error('Error swapping alternative:', e);
