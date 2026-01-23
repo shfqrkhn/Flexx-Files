@@ -41,7 +41,8 @@ global.document = {
         innerHTML: '',
         setAttribute: () => {},
         classList: { add: () => {}, remove: () => {} },
-        addEventListener: () => {}
+        addEventListener: () => {},
+        click: () => {}
     }),
     querySelector: () => null,
     querySelectorAll: () => [],
