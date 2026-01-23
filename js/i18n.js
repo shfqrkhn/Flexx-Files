@@ -88,9 +88,6 @@ const translations = {
             backupData: 'Backup Data',
             restoreData: 'Restore Data',
             factoryReset: 'Factory Reset',
-            debugTools: 'Debug Tools',
-            populateDummy: 'Populate Dummy Data',
-            unlockRest: 'Unlock Rest Timer',
             exportLogs: 'Export Diagnostic Logs',
             privacy: 'Privacy & Data',
             privacyDesc: 'Your data never leaves this device',
@@ -111,9 +108,7 @@ const translations = {
             lowRecovery: 'Low recovery. Walk only.',
             importConfirm: 'Import {count} sessions? Overwrites current data.',
             invalidFile: 'Invalid File',
-            exportSuccess: 'Data exported successfully',
-            generateDummy: 'Generate dummy data?',
-            unlockTimer: 'Force unlock rest timer?'
+            exportSuccess: 'Data exported successfully'
         },
 
         // Errors
