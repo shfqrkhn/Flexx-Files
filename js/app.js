@@ -453,7 +453,7 @@ window.swapAlt = (id) => {
         const nameElement = document.getElementById(`name-${id}`);
 
         if (vidElement) {
-            vidElement.href = sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video;
+            vidElement.href = Sanitizer.sanitizeURL(sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video);
             vidElement.rel = 'noopener noreferrer';
             vidElement.setAttribute('aria-label', `Watch video for ${sel || cfg.name}`);
         }
@@ -477,7 +477,7 @@ window.swapCardioLink = () => {
         if (cfg) {
             const vidElement = document.getElementById('cardio-vid');
             if (vidElement) {
-                vidElement.href = cfg.video;
+                vidElement.href = Sanitizer.sanitizeURL(cfg.video);
                 vidElement.rel = 'noopener noreferrer';
                 vidElement.setAttribute('aria-label', `Watch video for ${cfg.name}`);
             }
