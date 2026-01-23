@@ -142,7 +142,8 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
 }
 .timer-dock.active { transform: translateX(-50%) translateY(0); }
 .timer-display { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; }
-.timer-skip { color: var(--text-secondary); font-size: 0.875rem; letter-spacing: 1px; cursor: pointer; }
+.timer-skip { color: var(--text-secondary); font-size: 0.875rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s ease; }
+.timer-skip:active { transform: scale(0.95); color: var(--accent); }
 
 /* === NAVIGATION === */
 .bottom-nav {
@@ -156,8 +157,11 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
     background: none; border: none; color: var(--text-secondary);
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     font-size: 0.7rem; font-weight: 600; opacity: 0.6; transition: 0.2s;
+    cursor: pointer;
 }
+.nav-item:active { transform: scale(0.92); }
 .nav-item.active { opacity: 1; color: var(--accent); transform: translateY(-2px); }
+.nav-item.active:active { transform: translateY(-2px) scale(0.92); }
 .nav-item .icon { font-size: 1.4rem; }
 
 /* === MODALS === */
@@ -177,7 +181,8 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
 }
 .modal-overlay.active .modal-box { transform: scale(1) translateY(0); }
 .modal-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
-.btn-modal { padding: 0.75rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; border: none; cursor: pointer; }
+.btn-modal { padding: 0.75rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; border: none; cursor: pointer; transition: all 0.2s ease; }
+.btn-modal:active { transform: scale(0.96); }
 .btn-confirm { background: var(--accent); color: white; }
 .btn-danger { background: var(--error); color: white; }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
