@@ -593,8 +593,7 @@ window.finish = async () => {
     } catch (e) {
         Logger.error('Failed to save session', {
             sessionId: State.activeSession?.id,
-            error: e.message,
-            stack: e.stack
+            error: e.message
         });
         console.error('Error finishing session:', e);
         ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
