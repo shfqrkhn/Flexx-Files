@@ -308,22 +308,23 @@ function renderHistory(c) {
     c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
-                <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${x.recoveryStatus.toUpperCase()}</span></div>
-                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id}')">✕</button>
+                <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
+                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id.replace(/['"\\]/g, '')}')">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">WARMUP</div>
-                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${x.warmup ? x.warmup.map(w => w.completed ? `✓ ${w.altUsed || w.id} ` : '').join('') : 'No Data'}</div>
+                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${x.warmup ? x.warmup.map(w => w.completed ? `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} ` : '').join('') : 'No Data'}</div>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
                 ${x.exercises.map(e => {
                      // Name Display Fix
-                     const displayName = e.altName || e.name || EXERCISES.find(cfg=>cfg.id===e.id)?.name || e.id;
+                     const rawName = e.altName || e.name || EXERCISES.find(cfg=>cfg.id===e.id)?.name || e.id;
+                     const displayName = Sanitizer.sanitizeString(rawName);
                      return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
                 }).join('')}
                 <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
                 <div class="text-xs">
-                    Cardio: ${x.cardio?.type || 'N/A'}<br>
+                    Cardio: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
                     Decompress: ${Array.isArray(x.decompress) ? (x.decompress.every(d=>d.completed) ? 'Full Session' : 'Partial') : (x.decompress?.completed ? 'Completed' : 'Skipped')}
                 </div>
             </details>
