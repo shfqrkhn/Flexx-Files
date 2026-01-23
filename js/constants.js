@@ -26,8 +26,31 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.8';
+export const APP_VERSION = '3.9';
 export const STORAGE_VERSION = 'v3';
+
+// === OBSERVABILITY ===
+export const LOG_LEVEL = 'INFO'; // DEBUG, INFO, WARN, ERROR, CRITICAL
+export const MAX_LOG_ENTRIES = 500;
+export const MAX_ERROR_ENTRIES = 50;
+export const PERFORMANCE_LONG_TASK_MS = 50;
+
+// === SECURITY ===
+export const RATE_LIMIT_MAX_ATTEMPTS = 5;
+export const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
+export const SESSION_DRAFT_AUTOSAVE_INTERVAL_MS = 30000; // 30 seconds
+
+// === ACCESSIBILITY ===
+export const A11Y_ANNOUNCE_DELAY_MS = 100;
+export const A11Y_FOCUS_TRAP_ENABLED = true;
+
+// === I18N ===
+export const DEFAULT_LOCALE = 'en';
+export const SUPPORTED_LOCALES = ['en'];
+
+// === SUSTAINABILITY ===
+export const BATTERY_LOW_THRESHOLD = 0.2; // 20%
+export const BATTERY_CRITICAL_THRESHOLD = 0.15; // 15%
 
 // === DEBUG ===
 export const DUMMY_DATA_SESSIONS = 8; // Number of sessions in dummy data

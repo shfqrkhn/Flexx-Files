@@ -2,7 +2,120 @@ import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
 
 export const Storage = {
-    KEYS: { SESSIONS: 'flexx_sessions_v3', PREFS: 'flexx_prefs', MIGRATION_VERSION: 'flexx_migration_version' },
+    KEYS: {
+        SESSIONS: 'flexx_sessions_v3',
+        PREFS: 'flexx_prefs',
+        MIGRATION_VERSION: 'flexx_migration_version',
+        BACKUP: 'flexx_backup_snapshot',
+        DRAFT: 'flexx_draft_session'
+    },
+
+    /**
+     * ATOMIC TRANSACTION SYSTEM
+     * Provides rollback capability for safe data operations
+     */
+    Transaction: {
+        inProgress: false,
+        snapshot: null,
+
+        begin() {
+            if (this.inProgress) {
+                console.warn('Transaction already in progress');
+                return false;
+            }
+
+            try {
+                // Create snapshot of current data
+                const sessions = Storage.getSessions();
+                this.snapshot = JSON.parse(JSON.stringify(sessions));
+                this.inProgress = true;
+                console.log('Transaction started', { sessionCount: sessions.length });
+                return true;
+            } catch (e) {
+                console.error('Failed to begin transaction:', e);
+                return false;
+            }
+        },
+
+        commit() {
+            if (!this.inProgress) {
+                console.warn('No transaction in progress');
+                return false;
+            }
+
+            try {
+                // Transaction successful, clear snapshot
+                this.snapshot = null;
+                this.inProgress = false;
+                console.log('Transaction committed');
+                return true;
+            } catch (e) {
+                console.error('Failed to commit transaction:', e);
+                this.rollback();
+                return false;
+            }
+        },
+
+        rollback() {
+            if (!this.inProgress || !this.snapshot) {
+                console.warn('No transaction to rollback');
+                return false;
+            }
+
+            try {
+                // Restore from snapshot
+                localStorage.setItem(Storage.KEYS.SESSIONS, JSON.stringify(this.snapshot));
+                this.snapshot = null;
+                this.inProgress = false;
+                console.log('Transaction rolled back');
+                return true;
+            } catch (e) {
+                console.error('CRITICAL: Failed to rollback transaction:', e);
+                return false;
+            }
+        }
+    },
+
+    /**
+     * Save draft session for recovery
+     */
+    saveDraft(session) {
+        try {
+            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
+            console.log('Draft saved', { sessionId: session.id });
+            return true;
+        } catch (e) {
+            console.error('Failed to save draft:', e);
+            return false;
+        }
+    },
+
+    /**
+     * Load draft session
+     */
+    loadDraft() {
+        try {
+            const draft = localStorage.getItem(this.KEYS.DRAFT);
+            return draft ? JSON.parse(draft) : null;
+        } catch (e) {
+            console.error('Failed to load draft:', e);
+            return null;
+        }
+    },
+
+    /**
+     * Clear draft session
+     */
+    clearDraft() {
+        try {
+            localStorage.removeItem(this.KEYS.DRAFT);
+            console.log('Draft cleared');
+            return true;
+        } catch (e) {
+            console.error('Failed to clear draft:', e);
+            return false;
+        }
+    },
 
     /**
      * Schema Migration System
@@ -82,6 +195,12 @@ export const Storage = {
     },
 
     saveSession(session) {
+        // Start atomic transaction
+        if (!this.Transaction.begin()) {
+            console.error('Could not start transaction for saveSession');
+            throw new Error('Transaction failed to start');
+        }
+
         try {
             const sessions = this.getSessions();
 
@@ -117,11 +236,23 @@ export const Storage = {
 
             localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
 
+            // Commit transaction
+            if (!this.Transaction.commit()) {
+                throw new Error('Transaction commit failed');
+            }
+
+            // Clear draft after successful save
+            this.clearDraft();
+
             // Auto-export every N sessions as backup
             if (sessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(sessions);
+
+            console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {
             console.error('Failed to save session:', e);
+            // Rollback transaction on error
+            this.Transaction.rollback();
             alert('Failed to save workout. Please try exporting your data.');
             throw e; // Re-throw so caller knows it failed
         }
