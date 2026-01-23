@@ -153,7 +153,7 @@ function renderLifting(c) {
                     </div>
                     <div class="stepper-control">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)">−</button>
-                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5">
+                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)">+</button>
                     </div>
                     <div class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)">${Calculator.getPlateLoad(w)} / side</div>

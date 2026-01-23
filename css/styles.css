@@ -88,9 +88,17 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
     display: flex; align-items: center; justify-content: center;
     transition: all 0.2s ease; cursor: pointer;
 }
+.set-btn:active {
+    transform: scale(0.95);
+    background: var(--bg-card);
+}
 .set-btn.completed {
     background: var(--success); color: #000; border-color: var(--success);
     box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+}
+.set-btn.completed:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.5);
 }
 
 /* === BUTTONS === */
@@ -99,11 +107,21 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
     width: 100%; padding: 1rem; border-radius: var(--radius-lg);
     font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
     box-shadow: 0 4px 15px var(--accent-glow); margin-top: 1rem;
+    transition: all 0.2s ease; cursor: pointer;
+}
+.btn-primary:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 8px var(--accent-glow);
 }
 .btn-secondary {
     background: var(--bg-secondary); color: var(--text-secondary);
     width: 100%; padding: 0.75rem; border-radius: var(--radius-sm);
     border: 1px solid var(--border); font-weight: 600; cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-secondary:active {
+    transform: scale(0.98);
+    background: var(--bg-card);
 }
 .btn-debug {
     background: #333; color: var(--warning); border: 1px dashed var(--warning);
