@@ -41,6 +41,10 @@ h1 { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.5px; margin: 0 0 0
 h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); }
 h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; }
 .text-xs { font-size: 0.75rem; color: var(--text-secondary); letter-spacing: 0.5px; }
+a { transition: all 0.2s ease; }
+a:active { transform: scale(0.9); opacity: 0.7; }
+summary { cursor: pointer; transition: all 0.2s ease; }
+summary:active { transform: scale(0.98); opacity: 0.8; }
 
 /* === CARDS === */
 .card {
@@ -61,9 +65,20 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
 }
 .stepper-btn {
     width: 44px; height: 44px; border-radius: var(--radius-sm);
-    border: none; background: var(--bg-card); color: var(--accent);
+    border: 2px solid var(--accent); background: var(--bg-card); color: var(--accent);
     font-size: 1.5rem; font-weight: bold; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease;
+}
+.stepper-btn:active {
+    transform: scale(0.92);
+    background: var(--accent);
+    color: var(--bg-primary);
+    box-shadow: 0 0 12px var(--accent-glow);
+}
+.stepper-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 .stepper-value {
     flex: 1; text-align: center; font-size: 1.5rem; font-weight: 700;
@@ -77,9 +92,17 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
     display: flex; align-items: center; justify-content: center;
     transition: all 0.2s ease; cursor: pointer;
 }
+.set-btn:active {
+    transform: scale(0.95);
+    background: var(--bg-card);
+}
 .set-btn.completed {
     background: var(--success); color: #000; border-color: var(--success);
     box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+}
+.set-btn.completed:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.5);
 }
 
 /* === BUTTONS === */
@@ -88,11 +111,21 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
     width: 100%; padding: 1rem; border-radius: var(--radius-lg);
     font-size: 1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
     box-shadow: 0 4px 15px var(--accent-glow); margin-top: 1rem;
+    transition: all 0.2s ease; cursor: pointer;
+}
+.btn-primary:active {
+    transform: scale(0.98);
+    box-shadow: 0 2px 8px var(--accent-glow);
 }
 .btn-secondary {
     background: var(--bg-secondary); color: var(--text-secondary);
     width: 100%; padding: 0.75rem; border-radius: var(--radius-sm);
     border: 1px solid var(--border); font-weight: 600; cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-secondary:active {
+    transform: scale(0.98);
+    background: var(--bg-card);
 }
 .btn-debug {
     background: #333; color: var(--warning); border: 1px dashed var(--warning);
@@ -113,7 +146,8 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
 }
 .timer-dock.active { transform: translateX(-50%) translateY(0); }
 .timer-display { font-size: 1.5rem; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; }
-.timer-skip { color: var(--text-secondary); font-size: 0.875rem; letter-spacing: 1px; cursor: pointer; }
+.timer-skip { color: var(--text-secondary); font-size: 0.875rem; letter-spacing: 1px; cursor: pointer; transition: all 0.2s ease; }
+.timer-skip:active { transform: scale(0.95); color: var(--accent); }
 
 /* === NAVIGATION === */
 .bottom-nav {
@@ -127,8 +161,11 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
     background: none; border: none; color: var(--text-secondary);
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     font-size: 0.7rem; font-weight: 600; opacity: 0.6; transition: 0.2s;
+    cursor: pointer;
 }
+.nav-item:active { transform: scale(0.92); }
 .nav-item.active { opacity: 1; color: var(--accent); transform: translateY(-2px); }
+.nav-item.active:active { transform: translateY(-2px) scale(0.92); }
 .nav-item .icon { font-size: 1.4rem; }
 
 /* === MODALS === */
@@ -148,7 +185,8 @@ h3 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin-bot
 }
 .modal-overlay.active .modal-box { transform: scale(1) translateY(0); }
 .modal-actions { display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; }
-.btn-modal { padding: 0.75rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; border: none; cursor: pointer; }
+.btn-modal { padding: 0.75rem 1.25rem; border-radius: var(--radius-sm); font-weight: 600; border: none; cursor: pointer; transition: all 0.2s ease; }
+.btn-modal:active { transform: scale(0.96); }
 .btn-confirm { background: var(--accent); color: white; }
 .btn-danger { background: var(--error); color: white; }
 .btn-ghost { background: transparent; color: var(--text-secondary); }
