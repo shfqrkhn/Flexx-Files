@@ -1,5 +1,9 @@
 import { EXERCISES, WARMUP, DECOMPRESSION, CARDIO_OPTIONS, RECOVERY_CONFIG } from './config.js';
 import { Storage, Calculator, Validator } from './core.js';
+import { Observability, Logger, Metrics, Analytics } from './observability.js';
+import { Accessibility, ScreenReader } from './accessibility.js';
+import { Security, Sanitizer } from './security.js';
+import { I18n, DateFormatter } from './i18n.js';
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -347,16 +351,33 @@ function renderSettings(c) {
 
 // === HANDLERS ===
 window.setRec = async (r) => {
+    Metrics.mark('recovery-select-start');
+
     if (r === 'red') {
+        Logger.info('Red recovery selected - workout skipped', { recovery: r });
+        Analytics.track('recovery_selected', { status: 'red', action: 'skipped' });
+        ScreenReader.announce('Red recovery status selected. Rest day recommended.');
         return Modal.show({
             title: 'Take a Rest Day',
             text: 'Your body needs recovery. Strength training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead. Light movement aids recovery without adding stress. Come back when you feel better.',
             danger: true
         });
     }
+
     State.recovery = r;
-    State.activeSession = { id: crypto.randomUUID(), date: new Date().toISOString(), recoveryStatus: r, exercises: [] };
+    State.activeSession = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        recoveryStatus: r,
+        exercises: []
+    };
     State.phase = 'warmup';
+
+    Logger.info('Workout started', { recovery: r, sessionId: State.activeSession.id });
+    Analytics.track('recovery_selected', { status: r });
+    ScreenReader.announce(`${r === 'green' ? 'Full strength' : 'Reduced weight'} recovery selected. Starting warmup.`);
+
+    Metrics.measure('recovery-select', 'recovery-select-start');
     render();
 };
 window.modW = (id, d) => {
@@ -481,8 +502,20 @@ window.nextPhase = (p) => {
         }
 
         State.phase = p;
+        Logger.info('Phase transition', { from: State.phase, to: p });
+        Analytics.track('phase_transition', { phase: p });
+
+        const phaseNames = {
+            warmup: 'Warmup',
+            lifting: 'Lifting',
+            cardio: 'Cardio',
+            decompress: 'Decompression'
+        };
+        ScreenReader.announce(`Starting ${phaseNames[p] || p} phase`);
+
         render();
     } catch (e) {
+        Logger.error('Error transitioning phase', { phase: p, error: e.message });
         console.error('Error transitioning phase:', e);
         alert('Error saving progress. Please try again.');
     }
@@ -503,13 +536,40 @@ window.finish = async () => {
             };
         });
 
-        Storage.saveSession(State.activeSession);
+        Metrics.mark('session-save-start');
+        const savedSession = Storage.saveSession(State.activeSession);
+
+        Logger.info('Session completed', {
+            sessionId: savedSession.id,
+            sessionNumber: savedSession.sessionNumber,
+            totalVolume: savedSession.totalVolume,
+            recovery: savedSession.recoveryStatus
+        });
+
+        Analytics.track('session_completed', {
+            sessionNumber: savedSession.sessionNumber,
+            weekNumber: savedSession.weekNumber,
+            recovery: savedSession.recoveryStatus,
+            exercises: savedSession.exercises.length
+        });
+
+        const saveTime = Metrics.measure('session-save', 'session-save-start');
+        Logger.debug('Session save performance', { duration: `${saveTime?.toFixed(2)}ms` });
+
+        ScreenReader.announce(`Workout completed successfully. Session ${savedSession.sessionNumber} saved.`, 'assertive');
+
         State.view = 'history';
         State.phase = null;
         State.recovery = null;
         render();
     } catch (e) {
+        Logger.error('Failed to save session', {
+            sessionId: State.activeSession?.id,
+            error: e.message,
+            stack: e.stack
+        });
         console.error('Error finishing session:', e);
+        ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
         alert('Failed to save session. Your data may not be saved. Please try exporting as backup.');
     }
 };
@@ -569,7 +629,87 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 });
 
 // === INITIALIZATION ===
-// Run migrations on app load (before first render)
-Storage.runMigrations();
+// Initialize all mission-critical systems
+(async function initializeSystems() {
+    // Mark performance start
+    Metrics.mark('app-init-start');
 
-render();
+    // 1. Initialize observability first (for logging other initializations)
+    Observability.init();
+    Logger.info('🚀 Flexx Files v3.9 - Mission-Critical Mode');
+
+    // 2. Initialize security system
+    Security.init();
+    Logger.info('Security system active');
+
+    // 3. Initialize accessibility system
+    Accessibility.init();
+    Logger.info('Accessibility system active (WCAG 2.1 AA)');
+
+    // 4. Initialize internationalization
+    I18n.init();
+    Logger.info('i18n system active', { locale: I18n.currentLocale });
+
+    // 5. Run database migrations
+    Storage.runMigrations();
+    Logger.info('Database migrations complete');
+
+    // 6. Check for draft recovery
+    const draft = Storage.loadDraft();
+    if (draft) {
+        const restore = await Modal.show({
+            type: 'confirm',
+            title: 'Recover Session?',
+            text: `Found unsaved session from ${DateFormatter.relative(draft.date)}. Restore it?`
+        });
+        if (restore) {
+            State.activeSession = draft;
+            State.recovery = draft.recoveryStatus;
+            State.phase = 'lifting'; // Resume at lifting phase
+            Logger.info('Draft session restored', { id: draft.id });
+            ScreenReader.announce('Previous session recovered successfully');
+        } else {
+            Storage.clearDraft();
+            Logger.info('Draft session discarded');
+        }
+    }
+
+    // 7. Register service worker for offline capability
+    if ('serviceWorker' in navigator) {
+        try {
+            await navigator.serviceWorker.register('/sw.js');
+            Logger.info('Service worker registered');
+        } catch (e) {
+            Logger.warn('Service worker registration failed', { error: e.message });
+        }
+    }
+
+    // 8. Track app startup
+    Analytics.track('app_start', {
+        version: '3.9',
+        platform: navigator.platform,
+        online: navigator.onLine
+    });
+
+    // Measure initialization time
+    const initTime = Metrics.measure('app-init', 'app-init-start');
+    Logger.info('App initialized', {
+        duration: `${initTime?.toFixed(2)}ms`,
+        sessions: Storage.getSessions().length
+    });
+
+    // 9. Render the app
+    render();
+
+    // 10. Auto-save drafts every 30 seconds if session is active
+    setInterval(() => {
+        if (State.activeSession) {
+            Storage.saveDraft(State.activeSession);
+            Logger.debug('Draft auto-saved', { id: State.activeSession.id });
+        }
+    }, 30000); // 30 seconds
+
+})().catch(error => {
+    console.error('Fatal initialization error:', error);
+    alert('Failed to initialize app. Please refresh the page.');
+});
