@@ -355,62 +355,6 @@ export const Storage = {
         window.location.reload();
     },
 
-    // === DEBUG TOOLS (only available in development) ===
-    // To enable: Add ?debug=true to URL or set localStorage.debug = 'true'
-    isDebugMode() {
-        return localStorage.getItem('debug') === 'true' ||
-               new URLSearchParams(window.location.search).get('debug') === 'true' ||
-               window.location.hostname === 'localhost';
-    },
-
-    generateDummyData() {
-        if (!this.isDebugMode()) {
-            console.warn('Debug tools disabled in production');
-            return;
-        }
-        const s = [];
-        const start = Date.now() - (CONST.DUMMY_DATA_DAYS_BACK * 24 * 60 * 60 * 1000);
-
-        for(let i=0; i<CONST.DUMMY_DATA_SESSIONS; i++) {
-            const date = new Date(start + (i * CONST.SESSIONS_PER_WEEK * 24 * 60 * 60 * 1000));
-            s.push({
-                id: crypto.randomUUID(),
-                date: date.toISOString(),
-                sessionNumber: i+1,
-                weekNumber: Math.ceil((i+1) / CONST.SESSIONS_PER_WEEK),
-                recoveryStatus: i % 4 === 0 ? CONST.RECOVERY_STATES.YELLOW : CONST.RECOVERY_STATES.GREEN,
-                warmup: [],
-                exercises: EXERCISES.map(e => ({
-                    id: e.id,
-                    name: e.name,
-                    weight: CONST.OLYMPIC_BAR_WEIGHT_LBS + (i * CONST.WEIGHT_INCREMENT_LBS),
-                    setsCompleted: 3,
-                    completed: true,
-                    skipped: false
-                })),
-                cardio: { type: 'Rower', completed: true },
-                decompress: []
-            });
-        }
-        localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(s));
-        window.location.reload();
-    },
-
-    unlockRest() {
-        if (!this.isDebugMode()) {
-            console.warn('Debug tools disabled in production');
-            return;
-        }
-        const s = this.getSessions();
-        if(s.length > 0) {
-            // Backdate last session to bypass rest requirement
-            s[s.length-1].date = new Date(Date.now() - (CONST.DEBUG_REST_UNLOCK_HOURS * 60 * 60 * 1000)).toISOString();
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(s));
-            window.location.reload();
-        } else {
-            console.warn('No sessions to unlock');
-        }
-    }
 };
 
 export const Calculator = {

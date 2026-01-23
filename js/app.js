@@ -341,11 +341,6 @@ function renderSettings(c) {
                 <div style="position:relative; margin-top:0.5rem"><button class="btn btn-secondary">Restore Data</button><input type="file" onchange="window.imp(this)" style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%"></div>
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()">Factory Reset</button>
             </div>
-            <h3 style="margin-top:2rem">Debug Tools</h3>
-            <div class="card">
-                <button class="btn btn-secondary btn-debug" onclick="window.debugPopulate()">Populate Dummy Data</button>
-                <button class="btn btn-secondary btn-debug" style="margin-top:0.5rem" onclick="window.debugUnlock()">Unlock Rest Timer</button>
-            </div>
         </div>`;
 }
 
@@ -578,8 +573,6 @@ window.startCardio = () => Timer.start(300);
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
 window.imp = (el) => { const r = new FileReader(); r.onload = e => Storage.importData(e.target.result); if(el.files[0]) r.readAsText(el.files[0]); };
-window.debugPopulate = () => { if(confirm('Generate dummy data?')) Storage.generateDummyData(); };
-window.debugUnlock = () => { if(confirm('Force unlock rest timer?')) Storage.unlockRest(); };
 
 // === SVG CHARTING ===
 window.drawChart = (id) => {

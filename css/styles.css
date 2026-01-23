@@ -233,10 +233,6 @@ summary:active { transform: scale(0.98); opacity: 0.8; }
     transform: scale(0.98);
     background: var(--bg-card);
 }
-.btn-debug {
-    background: #333; color: var(--warning); border: 1px dashed var(--warning);
-    font-family: monospace; font-size: var(--font-sm);
-}
 
 /* === TIMER DOCK === */
 .timer-dock {
