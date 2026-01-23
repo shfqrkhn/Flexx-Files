@@ -209,6 +209,14 @@ export const Storage = {
         }
 
         try {
+            // SECURITY: Validate session structure before saving
+            const validation = SecurityValidator.validateSession(session);
+            if (!validation.valid) {
+                const errorMsg = `Invalid session data: ${validation.errors.join(', ')}`;
+                console.error(errorMsg, { sessionId: session?.id });
+                throw new Error(errorMsg);
+            }
+
             const sessions = this.getSessions();
 
             // IDEMPOTENCY CHECK: Prevent duplicate saves of the same session
