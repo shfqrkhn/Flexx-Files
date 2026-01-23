@@ -352,11 +352,16 @@ function renderSettings(c) {
         <div class="container">
             <h1>Settings</h1>
             <div class="card">
-                <button class="btn btn-secondary" onclick="Storage.exportData()">Backup Data</button>
+                <button class="btn btn-secondary" id="backup-btn">Backup Data</button>
                 <div style="position:relative; margin-top:0.5rem"><button class="btn btn-secondary">Restore Data</button><input type="file" onchange="window.imp(this)" style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%"></div>
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()">Factory Reset</button>
             </div>
         </div>`;
+
+    const backupBtn = c.querySelector('#backup-btn');
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => Storage.exportData());
+    }
 }
 
 // === HANDLERS ===
