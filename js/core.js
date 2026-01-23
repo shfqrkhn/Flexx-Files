@@ -10,6 +10,9 @@ export const Storage = {
         DRAFT: 'flexx_draft_session'
     },
 
+    // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
+    _sessionCache: null,
+
     /**
      * ATOMIC TRANSACTION SYSTEM
      * Provides rollback capability for safe data operations
@@ -65,6 +68,7 @@ export const Storage = {
             try {
                 // Restore from snapshot
                 localStorage.setItem(Storage.KEYS.SESSIONS, JSON.stringify(this.snapshot));
+                Storage._sessionCache = null; // Invalidate cache
                 this.snapshot = null;
                 this.inProgress = false;
                 console.log('Transaction rolled back');
@@ -181,12 +185,14 @@ export const Storage = {
     },
 
     getSessions() {
+        if (this._sessionCache) return this._sessionCache;
         try {
             const data = localStorage.getItem(this.KEYS.SESSIONS);
             if (!data) return [];
             const sessions = JSON.parse(data);
             // Validate it's an array
-            return Array.isArray(sessions) ? sessions : [];
+            this._sessionCache = Array.isArray(sessions) ? sessions : [];
+            return this._sessionCache;
         } catch (e) {
             console.error('Failed to load sessions:', e);
             // Return empty array if corrupted, don't lose everything
@@ -269,6 +275,7 @@ export const Storage = {
                 return false;
             }
 
+            this._sessionCache = sessions; // Update cache
             localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
             return true;
         } catch (e) {
@@ -342,6 +349,7 @@ export const Storage = {
 
             if (confirm(`Import ${sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
                 localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+                this._sessionCache = null;
                 window.location.reload();
             }
         } catch (e) {
@@ -352,6 +360,7 @@ export const Storage = {
 
     reset() {
         localStorage.clear();
+        this._sessionCache = null;
         window.location.reload();
     },
 
