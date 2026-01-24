@@ -4,6 +4,7 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
+import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES } from './constants.js';
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -615,7 +616,26 @@ window.loadMoreHistory = () => {
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
-window.imp = (el) => { const r = new FileReader(); r.onload = e => Storage.importData(e.target.result); if(el.files[0]) r.readAsText(el.files[0]); };
+window.imp = (el) => {
+    const file = el.files[0];
+    if (!file) return;
+
+    // Sentinel: DoS prevention - validate file size before reading
+    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+        Modal.show({
+            type: 'error',
+            title: 'File Too Large',
+            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+        });
+        el.value = ''; // Reset input
+        return;
+    }
+
+    const r = new FileReader();
+    r.onload = e => Storage.importData(e.target.result);
+    r.readAsText(file);
+};
 
 // === SVG CHARTING ===
 window.drawChart = (id) => {
