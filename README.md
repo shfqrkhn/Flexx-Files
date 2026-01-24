@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.8 (Palette Update)
+**Version:** 3.9.9 (Palette Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.8';
+export const APP_VERSION = '3.9.9';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -947,8 +947,9 @@ export const Storage = {
 
             try {
                 // Create snapshot of current data
+                // Optimization: Shallow copy is sufficient as saveSession does not mutate objects in-place
                 const sessions = Storage.getSessions();
-                this.snapshot = JSON.parse(JSON.stringify(sessions));
+                this.snapshot = [...sessions];
                 this.inProgress = true;
                 console.log('Transaction started', { sessionCount: sessions.length });
                 return true;
@@ -1682,15 +1683,15 @@ function renderRecovery(c) {
                     <h3>⚠️ Long Gap Detected</h3>
                     <p class="text-xs">It's been ${check.days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.</p>
                 </div>` : ''}
-            <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select green recovery status">
+            <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
                 <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
                 <p class="text-xs">7+ hours sleep, no pain. Train at scheduled weights.</p>
             </button>
-            <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select yellow recovery status">
+            <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
                 <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
                 <p class="text-xs">5–6 hours sleep, general stiffness or fatigue. Weights reduced by 10%.</p>
             </button>
-            <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select red recovery status">
+            <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
                 <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
                 <p class="text-xs">< 5 hours sleep, acute pain, or illness. Do Not Lift. Go for a walk only.</p>
             </button>
@@ -4109,7 +4110,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.8';
+const CACHE_NAME = 'flexx-v3.9.9';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
