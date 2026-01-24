@@ -4,7 +4,7 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
-import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES } from './constants.js';
+import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -383,6 +383,9 @@ function renderSettings(c) {
                 </div>
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
+            <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
+                v${APP_VERSION} (${STORAGE_VERSION})
+            </div>
         </div>`;
 
     const backupBtn = c.querySelector('#backup-btn');
@@ -419,6 +422,7 @@ window.setRec = async (r) => {
     Analytics.track('recovery_selected', { status: r });
     ScreenReader.announce(`${r === 'green' ? 'Full strength' : 'Reduced weight'} recovery selected. Starting warmup.`);
 
+    Haptics.success(); // Tactile feedback for start
     Metrics.measure('recovery-select', 'recovery-select-start');
     render();
 };
@@ -608,6 +612,7 @@ window.finish = async () => {
 
         ScreenReader.announce(`Workout completed successfully. Session ${savedSession.sessionNumber} saved.`, 'assertive');
 
+        Haptics.success(); // Tactile feedback for completion
         State.view = 'history';
         State.phase = null;
         State.recovery = null;
