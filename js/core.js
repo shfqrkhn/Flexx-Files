@@ -409,10 +409,25 @@ export const Calculator = {
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
 
-        // O(N) pass to build O(1) lookup map
+        // Optimization: Iterate backwards and stop early once we found data for all current exercises.
+        // NOTE: This assumes we primarily care about exercises in the current configuration (EXERCISES).
+        // If the user has history for exercises no longer in EXERCISES, or if they haven't performed
+        // one of the current exercises, we will scan the full history (falling back to O(N)).
+        // This is acceptable as the app UI is driven by EXERCISES.
         const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise }>
 
-        for (const session of sessions) {
+        const requiredIds = new Set(EXERCISES.map(e => e.id));
+        const requiredCount = requiredIds.size;
+        const foundLast = new Set();
+        const foundLastCompleted = new Set();
+
+        for (let i = sessions.length - 1; i >= 0; i--) {
+            // Stop if we have found everything we need
+            if (foundLast.size === requiredCount && foundLastCompleted.size === requiredCount) {
+                break;
+            }
+
+            const session = sessions[i];
             for (const ex of session.exercises) {
                 if (ex.skipped || ex.usingAlternative) continue;
 
@@ -421,9 +436,15 @@ export const Calculator = {
                 }
                 const entry = lookup.get(ex.id);
 
-                entry.last = ex;
-                if (ex.completed) {
+                // Since iterating backwards, the first valid entry found is the latest
+                if (!entry.last) {
+                    entry.last = ex;
+                    if (requiredIds.has(ex.id)) foundLast.add(ex.id);
+                }
+
+                if (ex.completed && !entry.lastCompleted) {
                     entry.lastCompleted = ex;
+                    if (requiredIds.has(ex.id)) foundLastCompleted.add(ex.id);
                 }
             }
         }
