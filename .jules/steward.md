@@ -130,3 +130,28 @@
 - `sw.js:1-7` - Added 5 missing modules to ASSETS array, bumped cache version to v3.9.3
 
 **Verification:** Manual verification in DevTools Network Offline mode; all ES6 module imports resolve from cache; app functions completely offline.
+
+---
+
+## 2026-01-24 - [🛡️ Sentinel] - XSS Vulnerability via Inline Event Handlers with Insufficient Sanitization
+
+**Insight:** The history view delete button (app.js:328) used an inline `onclick` handler with string interpolation: `onclick="window.del('${x.id.replace(/['"\\]/g, '')}')"`. The `.replace(/['"\\]/g, '')` sanitization was critically insufficient—it only stripped quotes and backslashes but could be bypassed with:
+- Unicode escape sequences (`\u0027` = single quote)
+- Template literal context breaks
+- Hex escapes (`\x27` = single quote)
+
+This created a CRITICAL XSS vector where a crafted session ID could execute arbitrary JavaScript. The inline onclick pattern undermines CSP protections (requires `unsafe-inline`) and creates injection points throughout the template string rendering.
+
+**Protocol:**
+- NEVER use inline event handlers (`onclick`, `onload`, etc.) with dynamic data
+- ALWAYS use event delegation with data attributes for user-generated or dynamic content
+- Pattern: `data-*` attributes + `addEventListener` on container element
+- For delete/action buttons: `<button data-id="${id}" class="action-btn">` + `container.addEventListener('click', e => { const btn = e.target.closest('.action-btn'); if (btn) handle(btn.dataset.id); })`
+- Defense-in-depth: This pattern also enables CSP without `unsafe-inline`, further hardening XSS protections
+- Code review focus: grep for `onclick=.*\${` patterns and replace with event delegation
+
+**Files Modified:**
+- `js/app.js:328` - Removed inline onclick, added `btn-delete-session` class and `data-session-id` attribute
+- `js/app.js:356-363` - Added event delegation listener for delete buttons in renderHistory()
+
+**Verification:** JavaScript syntax check passes; delete functionality preserved; XSS vector eliminated through architectural change from inline handlers to event delegation.
