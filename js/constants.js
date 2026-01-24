@@ -28,6 +28,7 @@ export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 // === DATA VERSIONING ===
 export const APP_VERSION = '3.9.5';
 export const STORAGE_VERSION = 'v3';
+export const STORAGE_PREFIX = 'flexx_';
 
 // === OBSERVABILITY ===
 export const LOG_LEVEL = 'INFO'; // DEBUG, INFO, WARN, ERROR, CRITICAL

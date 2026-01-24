@@ -4,11 +4,11 @@ import { Validator as SecurityValidator } from './security.js';
 
 export const Storage = {
     KEYS: {
-        SESSIONS: 'flexx_sessions_v3',
-        PREFS: 'flexx_prefs',
-        MIGRATION_VERSION: 'flexx_migration_version',
-        BACKUP: 'flexx_backup_snapshot',
-        DRAFT: 'flexx_draft_session'
+        SESSIONS: `${CONST.STORAGE_PREFIX}sessions_v3`,
+        PREFS: `${CONST.STORAGE_PREFIX}prefs`,
+        MIGRATION_VERSION: `${CONST.STORAGE_PREFIX}migration_version`,
+        BACKUP: `${CONST.STORAGE_PREFIX}backup_snapshot`,
+        DRAFT: `${CONST.STORAGE_PREFIX}draft_session`
     },
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
@@ -365,7 +365,19 @@ export const Storage = {
     },
 
     reset() {
-        localStorage.clear();
+        // Sentinel: Only clear Flexx Files data, preserving other apps on same origin
+        const prefix = CONST.STORAGE_PREFIX || 'flexx_';
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            keys.push(localStorage.key(i));
+        }
+
+        keys.forEach(key => {
+            if (key.startsWith(prefix)) {
+                localStorage.removeItem(key);
+            }
+        });
+
         this._sessionCache = null;
         window.location.reload();
     },

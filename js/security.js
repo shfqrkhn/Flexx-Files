@@ -5,7 +5,7 @@
  */
 
 import { Logger } from './observability.js';
-import { RECOVERY_STATES } from './constants.js';
+import { RECOVERY_STATES, STORAGE_PREFIX } from './constants.js';
 
 // === INPUT SANITIZATION ===
 export const Sanitizer = {
@@ -433,7 +433,7 @@ export const AuditLog = {
 
     persist(entry) {
         try {
-            const audits = JSON.parse(localStorage.getItem('flexx_audit_log') || '[]');
+            const audits = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
             audits.push(entry);
 
             // Keep only last 50 critical events
@@ -441,7 +441,7 @@ export const AuditLog = {
                 audits.shift();
             }
 
-            localStorage.setItem('flexx_audit_log', JSON.stringify(audits));
+            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(audits));
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
         }
@@ -453,7 +453,7 @@ export const AuditLog = {
 
     getPersistedLogs() {
         try {
-            return JSON.parse(localStorage.getItem('flexx_audit_log') || '[]');
+            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
         } catch (e) {
             return [];
         }
@@ -461,7 +461,7 @@ export const AuditLog = {
 
     clear() {
         this.logs = [];
-        localStorage.removeItem('flexx_audit_log');
+        localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
     }
 };
 

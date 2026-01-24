@@ -4,6 +4,8 @@
  * All data is stored locally - zero external tracking
  */
 
+import { STORAGE_PREFIX } from './constants.js';
+
 // === LOG LEVELS ===
 const LOG_LEVELS = {
     DEBUG: 0,
@@ -115,13 +117,13 @@ const Logger = {
                 delete safeEntry.context.stack;
             }
 
-            const errors = JSON.parse(localStorage.getItem('flexx_errors') || '[]');
+            const errors = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
             errors.push(safeEntry);
             // Keep only last 50 errors
             if (errors.length > 50) {
                 errors.shift();
             }
-            localStorage.setItem('flexx_errors', JSON.stringify(errors));
+            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(errors));
         } catch (e) {
             console.error('Failed to persist error:', e);
         }
@@ -139,14 +141,14 @@ const Logger = {
 
     getErrors() {
         try {
-            return JSON.parse(localStorage.getItem('flexx_errors') || '[]');
+            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
         } catch (e) {
             return [];
         }
     },
 
     clearErrors() {
-        localStorage.removeItem('flexx_errors');
+        localStorage.removeItem(`${STORAGE_PREFIX}errors`);
     },
 
     exportLogs() {
