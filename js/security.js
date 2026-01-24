@@ -168,6 +168,10 @@ export const Validator = {
                 if (typeof w !== 'object' || !w || typeof w.id !== 'string' || typeof w.completed !== 'boolean') {
                     return { valid: false, errors: [`Warmup item ${i} invalid`] };
                 }
+                // Optional altUsed must be string if present
+                if (w.altUsed !== undefined && w.altUsed !== null && typeof w.altUsed !== 'string') {
+                    return { valid: false, errors: [`Warmup item ${i} altUsed must be string`] };
+                }
             }
         }
 
@@ -216,6 +220,23 @@ export const Validator = {
         // Validate weight is a reasonable number
         if (typeof exercise.weight !== 'number' || exercise.weight < 0 || exercise.weight > 2000) {
             return { valid: false, errors: ['Weight must be between 0 and 2000 lbs'] };
+        }
+
+        // Validate optional fields if present
+        if (exercise.setsCompleted !== undefined && (typeof exercise.setsCompleted !== 'number' || exercise.setsCompleted < 0)) {
+            return { valid: false, errors: ['setsCompleted must be a positive number'] };
+        }
+        if (exercise.completed !== undefined && typeof exercise.completed !== 'boolean') {
+            return { valid: false, errors: ['completed must be boolean'] };
+        }
+        if (exercise.usingAlternative !== undefined && typeof exercise.usingAlternative !== 'boolean') {
+            return { valid: false, errors: ['usingAlternative must be boolean'] };
+        }
+        if (exercise.altName !== undefined && exercise.altName !== null && typeof exercise.altName !== 'string') {
+            return { valid: false, errors: ['altName must be string'] };
+        }
+        if (exercise.skipped !== undefined && typeof exercise.skipped !== 'boolean') {
+            return { valid: false, errors: ['skipped must be boolean'] };
         }
 
         return { valid: true, errors: [] };

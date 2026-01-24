@@ -27,13 +27,17 @@ global.window = {
     },
     matchMedia: () => ({ matches: false, addEventListener: () => {} })
 };
-global.navigator = {
-    userAgent: 'NodeJS Test',
-    platform: 'NodeJS',
-    onLine: true,
-    vibrate: () => {},
-    language: 'en-US'
-};
+Object.defineProperty(global, 'navigator', {
+    value: {
+        userAgent: 'NodeJS Test',
+        platform: 'NodeJS',
+        onLine: true,
+        vibrate: () => {},
+        language: 'en-US'
+    },
+    writable: true,
+    configurable: true
+});
 global.localStorage = localStorageMock;
 global.document = {
     createElement: () => ({
@@ -84,7 +88,7 @@ async function runTests() {
         // 1. Idempotency: Save same session twice
         Storage.reset();
         const session = {
-            id: 'test-uuid-123',
+            id: '12345678-1234-1234-1234-123456789abc',
             date: new Date().toISOString(),
             recoveryStatus: 'green',
             exercises: [{ id: 'hinge', name: 'Deadlift', weight: 100, setsCompleted: 3, completed: true }]

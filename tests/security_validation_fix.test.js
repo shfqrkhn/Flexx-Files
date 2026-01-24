@@ -98,5 +98,44 @@ const baseSession = {
     assert(result.valid, 'Legacy decompress object is valid');
 }
 
+// 7. Stricter Optional Fields (Exercises)
+{
+    const session = {
+        ...baseSession,
+        exercises: [{
+            id: 'ex1', name: 'Ex 1', weight: 100,
+            setsCompleted: "STRING" // Bad type
+        }]
+    };
+    const result = Validator.validateSession(session);
+    assert(!result.valid, 'Exercise with bad setsCompleted is invalid');
+    assert(result.errors.some(e => e.includes('setsCompleted must be a positive number')), 'Correct error for setsCompleted');
+}
+{
+    const session = {
+        ...baseSession,
+        exercises: [{
+            id: 'ex1', name: 'Ex 1', weight: 100,
+            completed: 1 // Bad type (should be boolean)
+        }]
+    };
+    const result = Validator.validateSession(session);
+    assert(!result.valid, 'Exercise with bad completed is invalid');
+}
+
+// 8. Stricter Optional Fields (Warmup)
+{
+    const session = {
+        ...baseSession,
+        warmup: [{
+            id: 'w1', completed: true,
+            altUsed: 123 // Bad type (should be string)
+        }]
+    };
+    const result = Validator.validateSession(session);
+    assert(!result.valid, 'Warmup item with bad altUsed is invalid');
+    assert(result.errors.some(e => e.includes('altUsed must be string')), 'Correct error for altUsed');
+}
+
 console.log(`\nTests Completed: ${passed} Passed, ${failed} Failed`);
 if (failed > 0) process.exit(1);
