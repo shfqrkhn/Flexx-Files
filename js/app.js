@@ -245,11 +245,15 @@ function renderWarmup(c) {
 
 function renderLifting(c) {
     const sessions = Storage.getSessions();
+    const isDeload = Calculator.isDeloadWeek(sessions);
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                 <h1>Lifting</h1>
-                <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
+                <div class="flex-row" style="gap:0.5rem">
+                    ${isDeload ? `<span class="text-xs" style="border:1px solid var(--accent); color:var(--accent); padding:0.25rem 0.5rem; border-radius:0.75rem">DELOAD WEEK</span>` : ''}
+                    <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
+                </div>
             </div>
             <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
             ${EXERCISES.map(ex => {
