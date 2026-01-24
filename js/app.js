@@ -128,6 +128,10 @@ function render() {
                 console.warn(`Unknown view: ${State.view}`);
                 renderToday(main);
         }
+
+        // Accessibility: Move focus to main content on view change
+        // This ensures screen readers announce the new content and keyboard users aren't lost
+        main.focus();
     } catch (e) {
         console.error('Render error:', e);
         // Try to show error to user
