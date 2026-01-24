@@ -747,16 +747,22 @@ window.imp = (el) => {
 };
 
 // === SVG CHARTING ===
-window.drawChart = (id) => {
-    try {
-        const div = document.getElementById('chart-area');
-        if (!div) {
-            console.error('Chart area element not found');
-            return;
+const ChartCache = {
+    // WeakMap<sessionsArray, Map<exerciseId, dataArray>>
+    _cache: new WeakMap(),
+
+    getData(exerciseId) {
+        const sessions = Storage.getSessions();
+        if (!this._cache.has(sessions)) {
+            this._cache.set(sessions, new Map());
+        }
+        const sessionCache = this._cache.get(sessions);
+
+        if (sessionCache.has(exerciseId)) {
+            return sessionCache.get(exerciseId);
         }
 
         // Optimization: Single pass O(N) instead of filter/map chaining O(3N)
-        const sessions = Storage.getSessions();
         const data = [];
         let minVal = Infinity;
         let maxVal = -Infinity;
@@ -765,7 +771,7 @@ window.drawChart = (id) => {
             const exercises = sessions[i].exercises;
             for (let j = 0; j < exercises.length; j++) {
                 const ex = exercises[j];
-                if (ex.id === id) {
+                if (ex.id === exerciseId) {
                     if (!ex.usingAlternative) {
                         const v = ex.weight;
                         data.push({d: new Date(sessions[i].date), v});
@@ -776,6 +782,22 @@ window.drawChart = (id) => {
                 }
             }
         }
+
+        const result = { data, minVal, maxVal };
+        sessionCache.set(exerciseId, result);
+        return result;
+    }
+};
+
+window.drawChart = (id) => {
+    try {
+        const div = document.getElementById('chart-area');
+        if (!div) {
+            console.error('Chart area element not found');
+            return;
+        }
+
+        const { data, minVal, maxVal } = ChartCache.getData(id);
 
         if (data.length < 2) {
             div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
