@@ -217,6 +217,10 @@ export const Validator = {
             return { valid: false, errors: [`Missing fields: ${missing.join(', ')}`] };
         }
 
+        // Validate types
+        if (typeof exercise.id !== 'string') return { valid: false, errors: ['id must be a string'] };
+        if (typeof exercise.name !== 'string') return { valid: false, errors: ['name must be a string'] };
+
         // Validate weight is a reasonable number
         if (typeof exercise.weight !== 'number' || exercise.weight < 0 || exercise.weight > 2000) {
             return { valid: false, errors: ['Weight must be between 0 and 2000 lbs'] };
