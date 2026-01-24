@@ -407,8 +407,8 @@ function renderProtocol(c) {
             </div>
             <h1>The Protocol</h1>
             <div class="card">
-                <h3 style="color:var(--accent)">The "Filthy Floor" Standard</h3>
-                <p class="text-xs" style="margin-bottom:1rem">Strict Zero Floor Contact. All movements are Standing, Bench, or Wall variants for hygiene and focus.</p>
+                <h3 style="color:var(--accent)">Hygiene Protocol</h3>
+                <p class="text-xs" style="margin-bottom:1rem">All movements are designed to be performed standing, seated, or on a bench to ensure hygiene and minimize floor contact.</p>
 
                 <h3 style="color:var(--accent)">Overview</h3>
                 <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
