@@ -609,6 +609,20 @@ window.startCardio = () => Timer.start(300);
 window.loadMoreHistory = () => {
     State.historyLimit = (State.historyLimit || 20) + 20;
     render();
+
+    // A11y: Restore focus to maintain keyboard navigation context after re-render
+    const btn = document.getElementById('load-more-btn');
+    if (btn) {
+        btn.focus();
+    } else {
+        // Fallback: If button disappears (end of list), focus last item to keep user in context
+        const cards = document.querySelectorAll('.card');
+        if (cards.length > 0) {
+            const lastCard = cards[cards.length - 1];
+            const summary = lastCard.querySelector('summary');
+            if (summary) summary.focus();
+        }
+    }
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
