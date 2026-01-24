@@ -31,17 +31,13 @@ export const Storage = {
 
             try {
                 // Create snapshot of current data
-                // Sentinel: Use deep copy for integrity (prevent in-place mutations from corrupting rollback state)
-                const sessions = Storage.getSessions();
-
-                try {
-                    this.snapshot = structuredClone(sessions);
-                } catch (e) {
-                    this.snapshot = JSON.parse(JSON.stringify(sessions));
-                }
-
+                // Sentinel: Use reference copy for performance (O(1)).
+                // Rationale: usage patterns in saveSession guarantee that the sessions array
+                // and its contained objects are effectively immutable during the transaction.
+                // We trust the application not to mutate cache objects in-place.
+                this.snapshot = Storage.getSessions();
                 this.inProgress = true;
-                console.log('Transaction started', { sessionCount: sessions.length });
+                console.log('Transaction started', { sessionCount: this.snapshot.length });
                 return true;
             } catch (e) {
                 console.error('Failed to begin transaction:', e);
