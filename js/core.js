@@ -31,9 +31,9 @@ export const Storage = {
 
             try {
                 // Create snapshot of current data
-                // Optimization: Shallow copy is sufficient as saveSession does not mutate objects in-place
+                // Sentinel: Use deep copy to prevent mutation of snapshot by reference
                 const sessions = Storage.getSessions();
-                this.snapshot = [...sessions];
+                this.snapshot = 'structuredClone' in window ? structuredClone(sessions) : JSON.parse(JSON.stringify(sessions));
                 this.inProgress = true;
                 console.log('Transaction started', { sessionCount: sessions.length });
                 return true;

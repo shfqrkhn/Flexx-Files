@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.9 (Palette Update)
+**Version:** 3.9.10 (Sentinel Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.9';
+export const APP_VERSION = '3.9.10';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -947,9 +947,9 @@ export const Storage = {
 
             try {
                 // Create snapshot of current data
-                // Optimization: Shallow copy is sufficient as saveSession does not mutate objects in-place
+                // Sentinel: Use deep copy to prevent mutation of snapshot by reference
                 const sessions = Storage.getSessions();
-                this.snapshot = [...sessions];
+                this.snapshot = 'structuredClone' in window ? structuredClone(sessions) : JSON.parse(JSON.stringify(sessions));
                 this.inProgress = true;
                 console.log('Transaction started', { sessionCount: sessions.length });
                 return true;
@@ -4110,7 +4110,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.9';
+const CACHE_NAME = 'flexx-v3.9.10';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
