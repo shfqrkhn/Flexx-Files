@@ -281,73 +281,6 @@ export const CSP = {
     }
 };
 
-// === SECURE STORAGE ===
-export const SecureStorage = {
-    /**
-     * Encrypt data before storing (basic XOR cipher for demonstration)
-     * For production, use Web Crypto API with proper key management
-     */
-    encrypt(data, key = 'flexx-secure-key') {
-        const str = JSON.stringify(data);
-        let encrypted = '';
-
-        for (let i = 0; i < str.length; i++) {
-            encrypted += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-        }
-
-        return btoa(encrypted); // Base64 encode
-    },
-
-    /**
-     * Decrypt data from storage
-     */
-    decrypt(encrypted, key = 'flexx-secure-key') {
-        try {
-            const decoded = atob(encrypted);
-            let decrypted = '';
-
-            for (let i = 0; i < decoded.length; i++) {
-                decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-            }
-
-            return JSON.parse(decrypted);
-        } catch (e) {
-            Logger.error('Failed to decrypt data', { error: e.message });
-            return null;
-        }
-    },
-
-    /**
-     * Securely store data in localStorage
-     */
-    setItem(key, value, encrypt = false) {
-        try {
-            const data = encrypt ? this.encrypt(value) : JSON.stringify(value);
-            localStorage.setItem(key, data);
-            Logger.debug('Secure storage: item saved', { key, encrypted: encrypt });
-            return true;
-        } catch (e) {
-            Logger.error('Failed to save to secure storage', { key, error: e.message });
-            return false;
-        }
-    },
-
-    /**
-     * Securely retrieve data from localStorage
-     */
-    getItem(key, encrypted = false) {
-        try {
-            const data = localStorage.getItem(key);
-            if (!data) return null;
-
-            return encrypted ? this.decrypt(data) : JSON.parse(data);
-        } catch (e) {
-            Logger.error('Failed to read from secure storage', { key, error: e.message });
-            return null;
-        }
-    }
-};
-
 // === RATE LIMITING ===
 export const RateLimiter = {
     attempts: new Map(),
@@ -518,7 +451,6 @@ export const Security = {
     Sanitizer,
     Validator,
     CSP,
-    SecureStorage,
     RateLimiter,
     IntegrityChecker,
     AuditLog
