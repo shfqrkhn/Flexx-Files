@@ -84,7 +84,12 @@ const Timer = {
     },
     tick() {
         const rem = Math.ceil((this.endTime - Date.now()) / 1000);
-        if (rem <= 0) { this.stop(); Haptics.success(); return; }
+        if (rem <= 0) {
+            this.stop();
+            Haptics.success();
+            ScreenReader.announce('Rest period complete. Ready for next set.');
+            return;
+        }
         const m = Math.floor(rem / 60);
         const s = rem % 60;
         const timerVal = document.getElementById('timer-val');
