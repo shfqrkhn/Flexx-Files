@@ -265,9 +265,6 @@ export const Storage = {
             // Clear draft after successful save
             this.clearDraft();
 
-            // Auto-export every N sessions as backup
-            if (sessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(sessions);
-
             console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {

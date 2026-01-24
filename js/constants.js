@@ -4,7 +4,7 @@
  */
 
 // === WORKOUT TIMING ===
-export const REST_PERIOD_HOURS = 48; // Minimum hours between workouts
+export const REST_PERIOD_HOURS = 24; // Minimum hours between workouts
 export const WEEK_WARNING_HOURS = 168; // Warn if more than 1 week since last workout (7 days)
 export const SESSIONS_PER_WEEK = 3; // Used for week number calculation
 export const DEFAULT_REST_TIMER_SECONDS = 90; // Default rest between sets
