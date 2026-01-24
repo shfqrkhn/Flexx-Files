@@ -551,6 +551,7 @@ window.nextPhase = (p) => {
     } catch (e) {
         Logger.error('Error transitioning phase', { phase: p, error: e.message });
         console.error('Error transitioning phase:', e);
+        ScreenReader.announce('Error saving progress. Please try again.', 'assertive');
         alert('Error saving progress. Please try again.');
     }
 };
@@ -811,5 +812,6 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 
 })().catch(error => {
     console.error('Fatal initialization error:', error);
+    ScreenReader.announce('Failed to initialize app. Please refresh the page.', 'assertive');
     alert('Failed to initialize app. Please refresh the page.');
 });
