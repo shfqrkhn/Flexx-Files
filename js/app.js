@@ -787,12 +787,21 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     render();
 
     // 10. Auto-save drafts every 30 seconds if session is active
-    setInterval(() => {
+    const draftAutoSaveInterval = setInterval(() => {
         if (State.activeSession) {
             Storage.saveDraft(State.activeSession);
             Logger.debug('Draft auto-saved', { id: State.activeSession.id });
         }
     }, 30000); // 30 seconds
+
+    // 11. Clean up resources on page unload
+    window.addEventListener('beforeunload', () => {
+        clearInterval(draftAutoSaveInterval);
+        // Final draft save before unload
+        if (State.activeSession) {
+            Storage.saveDraft(State.activeSession);
+        }
+    });
 
 })().catch(error => {
     console.error('Fatal initialization error:', error);

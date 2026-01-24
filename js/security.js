@@ -65,18 +65,43 @@ export const Sanitizer = {
 
     /**
      * Validate URL is safe (no javascript: protocol)
+     * Defense-in-depth: pre-validate before URL parsing to prevent encoding bypasses
      */
     sanitizeURL(url) {
         try {
-            const parsed = new URL(url);
-            // Only allow http, https protocols
-            if (!['http:', 'https:'].includes(parsed.protocol)) {
-                Logger.warn('Unsafe URL protocol detected', { url, protocol: parsed.protocol });
+            // Type check
+            if (typeof url !== 'string' || !url) {
+                Logger.warn('Invalid URL type', { url: typeof url });
                 return '#';
             }
-            return url;
+
+            // Normalize whitespace and control characters that could hide protocol
+            const normalized = url.trim().replace(/[\x00-\x1F\x7F]/g, '');
+
+            // Pre-validation: block dangerous protocols before URL parsing
+            // This prevents encoding bypasses like java%09script: or data:
+            const protocolMatch = normalized.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/) || ['', ''];
+            const protocol = protocolMatch[1].toLowerCase();
+
+            const dangerousProtocols = ['javascript', 'data', 'vbscript', 'file', 'about'];
+            if (dangerousProtocols.includes(protocol)) {
+                Logger.warn('Dangerous URL protocol blocked', { url: normalized.substring(0, 50), protocol });
+                return '#';
+            }
+
+            // Parse and validate structure
+            const parsed = new URL(normalized);
+
+            // Only allow http, https protocols (double-check after parsing)
+            if (!['http:', 'https:'].includes(parsed.protocol)) {
+                Logger.warn('Unsafe URL protocol detected', { url: normalized.substring(0, 50), protocol: parsed.protocol });
+                return '#';
+            }
+
+            // Return normalized URL to prevent any residual encoding issues
+            return parsed.href;
         } catch (e) {
-            Logger.warn('Invalid URL', { url });
+            Logger.warn('Invalid URL format', { error: e.message });
             return '#';
         }
     }
