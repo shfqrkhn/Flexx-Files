@@ -35,12 +35,14 @@ const Modal = {
                 const cancel = document.createElement('button');
                 cancel.className = 'btn-modal btn-ghost';
                 cancel.innerText = 'Cancel';
+                cancel.setAttribute('aria-label', 'Cancel and close dialog');
                 cancel.onclick = () => this.close(false);
                 this.actions.appendChild(cancel);
             }
             const ok = document.createElement('button');
             ok.className = opts.danger ? 'btn-modal btn-danger' : 'btn-modal btn-confirm';
             ok.innerText = opts.okText || 'OK';
+            ok.setAttribute('aria-label', opts.okText ? `${opts.okText} and close dialog` : 'Confirm and close dialog');
             ok.onclick = () => this.close(true);
             this.actions.appendChild(ok);
             this.el.classList.add('active');
