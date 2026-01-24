@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.8 (Final Release)
+**Version:** 3.9 (Sentinel Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
