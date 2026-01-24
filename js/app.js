@@ -325,7 +325,7 @@ function renderHistory(c) {
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id.replace(/['"\\]/g, '')}')" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
+                <button class="btn btn-secondary btn-delete-session" style="width:auto; padding:0.25rem 0.75rem" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
@@ -352,6 +352,15 @@ function renderHistory(c) {
     if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', window.loadMoreHistory);
     }
+
+    // Sentinel: Event delegation for delete buttons (prevents XSS from inline onclick)
+    c.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete-session');
+        if (deleteBtn) {
+            const sessionId = deleteBtn.getAttribute('data-session-id');
+            if (sessionId) window.del(sessionId);
+        }
+    });
 }
 
 function renderProgress(c) {
