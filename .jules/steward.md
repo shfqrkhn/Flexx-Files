@@ -27,7 +27,7 @@
 - Use lowercase protocol matching to prevent case-sensitivity bypasses
 - Maintain explicit denylist of dangerous protocols: `javascript`, `data`, `vbscript`, `file`, `about`
 - Double-check protocol after parsing (defense-in-depth)
-- Return normalized `parsed.href` instead of raw input to prevent residual encoding issues
+- Return normalized `parsed.href` instead of raw input to prevent any residual encoding issues
 
 **Files Modified:**
 - `js/security.js:67-105` - Enhanced sanitizeURL with pre-validation and normalization
@@ -155,3 +155,21 @@ This created a CRITICAL XSS vector where a crafted session ID could execute arbi
 - `js/app.js:356-363` - Added event delegation listener for delete buttons in renderHistory()
 
 **Verification:** JavaScript syntax check passes; delete functionality preserved; XSS vector eliminated through architectural change from inline handlers to event delegation.
+
+---
+
+## 2026-01-24 - [🛡️ Sentinel] - Broken Transaction Atomicity due to Shallow Copy
+
+**Insight:** The `Storage.Transaction.begin()` method explicitly used a shallow copy (`[...sessions]`) for its rollback snapshot as a performance optimization. This compromised data integrity: if an in-memory object within the sessions array was mutated in place during a transaction (e.g. `session.exercises[0].weight = 999`), the rollback snapshot would also reflect this mutation, rendering the rollback mechanism ineffective for property changes. This violated the fundamental isolation property of a transaction.
+
+**Protocol:**
+- ALWAYS use Deep Copy for transaction snapshots in mutable in-memory stores.
+- Prioritize Data Integrity over micro-optimizations (like avoiding deep copy).
+- Use `structuredClone()` (with JSON fallback) for robust deep cloning.
+- Trust nothing: Do not rely on consumers of the Transaction API to be side-effect free.
+
+**Files Modified:**
+- `js/core.js:33-40` - Replaced shallow copy with `structuredClone` (and JSON fallback) in `Transaction.begin`.
+- `tests/integrity.test.js` - Added regression test verifying rollback of nested mutations.
+
+**Verification:** `tests/integrity.test.js` confirms rollback now reverts nested mutations; existing tests pass.
