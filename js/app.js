@@ -121,7 +121,10 @@ function render() {
 
         // Update active tab state
         document.querySelectorAll('.nav-item').forEach(el => {
-            el.classList.toggle('active', el.dataset.view === State.view);
+            const isActive = el.dataset.view === State.view;
+            el.classList.toggle('active', isActive);
+            if (isActive) el.setAttribute('aria-current', 'page');
+            else el.removeAttribute('aria-current');
         });
 
         main.innerHTML = '';
