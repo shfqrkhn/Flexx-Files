@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.5 (Sentinel Update)
+**Version:** 3.9.6 (Sentinel Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
@@ -804,7 +804,7 @@ export const RECOVERY_CONFIG = {
  */
 
 // === WORKOUT TIMING ===
-export const REST_PERIOD_HOURS = 48; // Minimum hours between workouts
+export const REST_PERIOD_HOURS = 24; // Minimum hours between workouts
 export const WEEK_WARNING_HOURS = 168; // Warn if more than 1 week since last workout (7 days)
 export const SESSIONS_PER_WEEK = 3; // Used for week number calculation
 export const DEFAULT_REST_TIMER_SECONDS = 90; // Default rest between sets
@@ -826,8 +826,9 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9';
+export const APP_VERSION = '3.9.6';
 export const STORAGE_VERSION = 'v3';
+export const STORAGE_PREFIX = 'flexx_';
 
 // === OBSERVABILITY ===
 export const LOG_LEVEL = 'INFO'; // DEBUG, INFO, WARN, ERROR, CRITICAL
@@ -839,6 +840,7 @@ export const PERFORMANCE_LONG_TASK_MS = 50;
 export const RATE_LIMIT_MAX_ATTEMPTS = 5;
 export const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 export const SESSION_DRAFT_AUTOSAVE_INTERVAL_MS = 30000; // 30 seconds
+export const MAX_IMPORT_FILE_SIZE_MB = 10; // Maximum file size for data imports (DoS prevention)
 
 // === ACCESSIBILITY ===
 export const A11Y_ANNOUNCE_DELAY_MS = 100;
@@ -883,9 +885,11 @@ export const ERROR_MESSAGES = {
     IMPORT_INVALID_FORMAT: 'Invalid file format: sessions must be an array',
     IMPORT_MISSING_FIELDS: 'Invalid file: some sessions are missing required fields',
     IMPORT_PARSE_ERROR: 'Invalid file: Please ensure this is a valid Flexx Files backup file.',
+    IMPORT_FILE_TOO_LARGE: 'File too large. Maximum size is 10MB.',
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };
+
 ```
 
 ## js/core.js
@@ -895,14 +899,15 @@ export const ERROR_MESSAGES = {
 ```javascript
 import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
+import { Validator as SecurityValidator } from './security.js';
 
 export const Storage = {
     KEYS: {
-        SESSIONS: 'flexx_sessions_v3',
-        PREFS: 'flexx_prefs',
-        MIGRATION_VERSION: 'flexx_migration_version',
-        BACKUP: 'flexx_backup_snapshot',
-        DRAFT: 'flexx_draft_session'
+        SESSIONS: `${CONST.STORAGE_PREFIX}sessions_v3`,
+        PREFS: `${CONST.STORAGE_PREFIX}prefs`,
+        MIGRATION_VERSION: `${CONST.STORAGE_PREFIX}migration_version`,
+        BACKUP: `${CONST.STORAGE_PREFIX}backup_snapshot`,
+        DRAFT: `${CONST.STORAGE_PREFIX}draft_session`
     },
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
@@ -1052,7 +1057,7 @@ export const Storage = {
             console.log(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
         } catch (e) {
             console.error('Migration failed:', e);
-            alert(`Data migration failed. Your data is safe but may need manual export/import. Error: ${e.message}`);
+            alert('Data migration failed. Your data is safe but may need manual export/import.');
         }
     },
 
@@ -1103,6 +1108,14 @@ export const Storage = {
         }
 
         try {
+            // SECURITY: Validate session structure before saving
+            const validation = SecurityValidator.validateSession(session);
+            if (!validation.valid) {
+                const errorMsg = `Invalid session data: ${validation.errors.join(', ')}`;
+                console.error(errorMsg, { sessionId: session?.id });
+                throw new Error(errorMsg);
+            }
+
             const sessions = this.getSessions();
 
             // IDEMPOTENCY CHECK: Prevent duplicate saves of the same session
@@ -1150,9 +1163,6 @@ export const Storage = {
 
             // Clear draft after successful save
             this.clearDraft();
-
-            // Auto-export every N sessions as backup
-            if (sessions.length % CONST.AUTO_EXPORT_INTERVAL === 0) this.autoExport(sessions);
 
             console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
             return session;
@@ -1230,23 +1240,17 @@ export const Storage = {
     importData(jsonString) {
         try {
             const data = JSON.parse(jsonString);
+
+            // Use Security Validator
+            const validation = SecurityValidator.validateImportData(data);
+            if (!validation.valid) {
+                // SECURITY: Never expose validation details to user
+                console.error('Import validation failed', { errors: validation.errors });
+                alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
+                return;
+            }
+
             const sessions = Array.isArray(data) ? data : data.sessions;
-
-            // Validate data structure
-            if (!Array.isArray(sessions)) {
-                alert('Invalid file format: sessions must be an array');
-                return;
-            }
-
-            // Validate each session has required fields
-            const invalidSessions = sessions.filter(s =>
-                !s.id || !s.date || !s.exercises || !Array.isArray(s.exercises)
-            );
-
-            if (invalidSessions.length > 0) {
-                alert(`Invalid file: ${invalidSessions.length} sessions are missing required fields (id, date, exercises)`);
-                return;
-            }
 
             if (confirm(`Import ${sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
                 localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
@@ -1255,12 +1259,24 @@ export const Storage = {
             }
         } catch (e) {
             console.error('Import error:', e);
-            alert(`Invalid file: ${e.message}\n\nPlease ensure this is a valid Flexx Files backup file.`);
+            alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
         }
     },
 
     reset() {
-        localStorage.clear();
+        // Sentinel: Only clear Flexx Files data, preserving other apps on same origin
+        const prefix = CONST.STORAGE_PREFIX || 'flexx_';
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            keys.push(localStorage.key(i));
+        }
+
+        keys.forEach(key => {
+            if (key.startsWith(prefix)) {
+                localStorage.removeItem(key);
+            }
+        });
+
         this._sessionCache = null;
         window.location.reload();
     },
@@ -1433,6 +1449,7 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
+import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -1458,18 +1475,20 @@ const Modal = {
 
             this.resolve = resolve;
             this.title.innerText = opts.title || 'Notice';
-            opts.html ? this.body.innerHTML = opts.html : this.body.innerText = opts.text || '';
+            opts.html ? this.body.innerHTML = Sanitizer.sanitizeHTML(opts.html) : this.body.innerText = opts.text || '';
             this.actions.innerHTML = '';
             if (opts.type === 'confirm') {
                 const cancel = document.createElement('button');
                 cancel.className = 'btn-modal btn-ghost';
                 cancel.innerText = 'Cancel';
+                cancel.setAttribute('aria-label', 'Cancel and close dialog');
                 cancel.onclick = () => this.close(false);
                 this.actions.appendChild(cancel);
             }
             const ok = document.createElement('button');
             ok.className = opts.danger ? 'btn-modal btn-danger' : 'btn-modal btn-confirm';
             ok.innerText = opts.okText || 'OK';
+            ok.setAttribute('aria-label', opts.okText ? `${opts.okText} and close dialog` : 'Confirm and close dialog');
             ok.onclick = () => this.close(true);
             this.actions.appendChild(ok);
             this.el.classList.add('active');
@@ -1510,7 +1529,12 @@ const Timer = {
     },
     tick() {
         const rem = Math.ceil((this.endTime - Date.now()) / 1000);
-        if (rem <= 0) { this.stop(); Haptics.success(); return; }
+        if (rem <= 0) {
+            this.stop();
+            Haptics.success();
+            ScreenReader.announce('Rest period complete. Ready for next set.');
+            return;
+        }
         const m = Math.floor(rem / 60);
         const s = rem % 60;
         const timerVal = document.getElementById('timer-val');
@@ -1542,7 +1566,10 @@ function render() {
 
         // Update active tab state
         document.querySelectorAll('.nav-item').forEach(el => {
-            el.classList.toggle('active', el.dataset.view === State.view);
+            const isActive = el.dataset.view === State.view;
+            el.classList.toggle('active', isActive);
+            if (isActive) el.setAttribute('aria-current', 'page');
+            else el.removeAttribute('aria-current');
         });
 
         main.innerHTML = '';
@@ -1557,6 +1584,10 @@ function render() {
                 console.warn(`Unknown view: ${State.view}`);
                 renderToday(main);
         }
+
+        // Accessibility: Move focus to main content on view change
+        // This ensures screen readers announce the new content and keyboard users aren't lost
+        main.focus();
     } catch (e) {
         console.error('Render error:', e);
         // Try to show error to user
@@ -1614,18 +1645,18 @@ function renderRecovery(c) {
                     <h3>⚠️ Long Gap Detected</h3>
                     <p class="text-xs">It's been ${check.days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.</p>
                 </div>` : ''}
-            <div class="card" onclick="window.setRec('green')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select green recovery status">
+            <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select green recovery status">
                 <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
                 <p class="text-xs">Well rested, feeling strong. Use full recommended weights with normal progression (+5 lbs on success).</p>
-            </div>
-            <div class="card" onclick="window.setRec('yellow')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select yellow recovery status">
+            </button>
+            <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select yellow recovery status">
                 <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
                 <p class="text-xs">Tired, sore, or stressed. Use 90% of recommended weights. Still effective training, just lower intensity.</p>
-            </div>
-            <div class="card" onclick="window.setRec('red')" style="cursor:pointer" tabindex="0" role="button" aria-label="Select red recovery status">
+            </button>
+            <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select red recovery status">
                 <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
                 <p class="text-xs">Sick, injured, or exhausted. Skip strength training. Take a walk instead. Come back when you feel better.</p>
-            </div>
+            </button>
         </div>`;
 }
 
@@ -1639,7 +1670,7 @@ function renderWarmup(c) {
                         <input type="checkbox" class="big-check" id="w-${w.id}">
                         <div><div id="name-${w.id}">${w.name}</div><div class="text-xs">${w.reps}</div></div>
                     </label>
-                    <a id="vid-${w.id}" href="${w.video}" target="_blank" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${w.name}">🎥</a>
+                    <a id="vid-${w.id}" href="${Sanitizer.sanitizeURL(w.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${w.name}">🎥</a>
                 </div>
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
@@ -1648,7 +1679,7 @@ function renderWarmup(c) {
                     </select>
                 </details>
             </div>`).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')">Start Lifting</button></div>`;
+        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
 }
 
 function renderLifting(c) {
@@ -1671,14 +1702,14 @@ function renderLifting(c) {
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${ex.name}</h2>
                             <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${ex.video}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a>
+                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(ex.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${ex.name}">🎥</a>
                     </div>
                     <div class="stepper-control">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${ex.name}">−</button>
                         <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${ex.name}">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${ex.name}">+</button>
                     </div>
-                    <div class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
+                    <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
                     <div class="set-group" role="group" aria-label="Sets for ${ex.name}">
                         ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
                     </div>
@@ -1691,7 +1722,7 @@ function renderLifting(c) {
                     </details>
                 </div>`;
             }).join('')}
-            <button class="btn btn-primary" onclick="window.nextPhase('cardio')">Next: Cardio</button>
+            <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="Proceed to cardio phase">Next: Cardio</button>
         </div>`;
 }
 
@@ -1699,11 +1730,11 @@ function renderCardio(c) {
     const defaultLink = CARDIO_OPTIONS[0].video;
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${defaultLink}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a></div>
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(defaultLink)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${CARDIO_OPTIONS[0].name}">🎥</a></div>
             <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
-            <button class="btn btn-secondary" onclick="window.startCardio()">Start 5m Timer</button>
+            <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
             <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></label>
-        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')">Next: Decompress</button></div>`;
+        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')" aria-label="Proceed to decompression phase">Next: Decompress</button></div>`;
 }
 
 function renderDecompress(c) {
@@ -1713,7 +1744,7 @@ function renderDecompress(c) {
                 <div class="card">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                         <h3 id="name-${d.id}">${d.name}</h3>
-                        <a id="vid-${d.id}" href="${d.video}" target="_blank" style="font-size:1.5rem; text-decoration:none">🎥</a>
+                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(d.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
                     </div>
                     ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
                     <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
@@ -1725,20 +1756,24 @@ function renderDecompress(c) {
                         </select>
                     </details>
                 </div>`).join('')}
-            <button class="btn btn-primary" onclick="window.finish()">Save & Finish</button>
+            <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
 
 function renderHistory(c) {
-    const allSessions = Storage.getSessions().slice().reverse();
+    // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
+    const sessions = Storage.getSessions();
     const limit = State.historyLimit || 20;
-    const s = allSessions.slice(0, limit);
+    const s = [];
+    for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
+        s.push(sessions[i]);
+    }
 
     c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary" style="width:auto; padding:0.25rem 0.75rem" onclick="window.del('${x.id.replace(/['"\\]/g, '')}')">✕</button>
+                <button class="btn btn-secondary btn-delete-session" style="width:auto; padding:0.25rem 0.75rem" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
@@ -1758,17 +1793,18 @@ function renderHistory(c) {
                 </div>
             </details>
         </div>`).join('')}
-        ${limit < allSessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${allSessions.length - limit} remaining)</button>` : ''}
+        ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
         </div>`;
 
     const loadMoreBtn = c.querySelector('#load-more-btn');
     if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', window.loadMoreHistory);
     }
+
 }
 
 function renderProgress(c) {
-    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
+    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" aria-label="Select exercise for progress chart" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
     setTimeout(()=>window.drawChart('hinge'),100);
 }
 
@@ -1777,11 +1813,25 @@ function renderSettings(c) {
         <div class="container">
             <h1>Settings</h1>
             <div class="card">
-                <button class="btn btn-secondary" onclick="Storage.exportData()">Backup Data</button>
-                <div style="position:relative; margin-top:0.5rem"><button class="btn btn-secondary">Restore Data</button><input type="file" onchange="window.imp(this)" style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%"></div>
-                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()">Factory Reset</button>
+                <button class="btn btn-secondary" id="backup-btn">Backup Data</button>
+                <div style="position:relative; margin-top:0.5rem">
+                    <button class="btn btn-secondary" tabindex="-1" aria-hidden="true">Restore Data</button>
+                    <input type="file" onchange="window.imp(this)" aria-label="Restore Data from Backup"
+                           onfocus="this.previousElementSibling.style.outline='2px solid var(--accent)';this.previousElementSibling.style.outlineOffset='2px'"
+                           onblur="this.previousElementSibling.style.outline=''"
+                           style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%">
+                </div>
+                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
+            </div>
+            <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
+                v${APP_VERSION} (${STORAGE_VERSION})
             </div>
         </div>`;
+
+    const backupBtn = c.querySelector('#backup-btn');
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => Storage.exportData());
+    }
 }
 
 // === HANDLERS ===
@@ -1812,6 +1862,7 @@ window.setRec = async (r) => {
     Analytics.track('recovery_selected', { status: r });
     ScreenReader.announce(`${r === 'green' ? 'Full strength' : 'Reduced weight'} recovery selected. Starting warmup.`);
 
+    Haptics.success(); // Tactile feedback for start
     Metrics.measure('recovery-select', 'recovery-select-start');
     render();
 };
@@ -1823,7 +1874,15 @@ window.modW = (id, d) => {
             return;
         }
         const currentValue = parseFloat(el.value) || 0;
-        el.value = Math.max(0, currentValue + d);
+        const newValue = Math.max(0, currentValue + d);
+        el.value = newValue;
+
+        // Palette: Update plate math display in real-time
+        const plateEl = document.getElementById(`pl-${id}`);
+        if (plateEl) {
+            plateEl.textContent = `${Calculator.getPlateLoad(newValue)} / side`;
+        }
+
         Haptics.light();
     } catch (e) {
         console.error('Error modifying weight:', e);
@@ -1867,10 +1926,12 @@ window.swapAlt = (id) => {
         const nameElement = document.getElementById(`name-${id}`);
 
         if (vidElement) {
-            vidElement.href = sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video;
+            vidElement.href = Sanitizer.sanitizeURL(sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video);
+            vidElement.rel = 'noopener noreferrer';
+            vidElement.setAttribute('aria-label', `Watch video for ${sel || cfg.name}`);
         }
         if (nameElement) {
-            nameElement.innerHTML = sel || cfg.name;
+            nameElement.textContent = sel || cfg.name;
         }
     } catch (e) {
         console.error('Error swapping alternative:', e);
@@ -1889,7 +1950,9 @@ window.swapCardioLink = () => {
         if (cfg) {
             const vidElement = document.getElementById('cardio-vid');
             if (vidElement) {
-                vidElement.href = cfg.video;
+                vidElement.href = Sanitizer.sanitizeURL(cfg.video);
+                vidElement.rel = 'noopener noreferrer';
+                vidElement.setAttribute('aria-label', `Watch video for ${cfg.name}`);
             }
         }
     } catch (e) {
@@ -1955,6 +2018,7 @@ window.nextPhase = (p) => {
     } catch (e) {
         Logger.error('Error transitioning phase', { phase: p, error: e.message });
         console.error('Error transitioning phase:', e);
+        ScreenReader.announce('Error saving progress. Please try again.', 'assertive');
         alert('Error saving progress. Please try again.');
     }
 };
@@ -1996,6 +2060,7 @@ window.finish = async () => {
 
         ScreenReader.announce(`Workout completed successfully. Session ${savedSession.sessionNumber} saved.`, 'assertive');
 
+        Haptics.success(); // Tactile feedback for completion
         State.view = 'history';
         State.phase = null;
         State.recovery = null;
@@ -2003,8 +2068,7 @@ window.finish = async () => {
     } catch (e) {
         Logger.error('Failed to save session', {
             sessionId: State.activeSession?.id,
-            error: e.message,
-            stack: e.stack
+            error: e.message
         });
         console.error('Error finishing session:', e);
         ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
@@ -2016,10 +2080,38 @@ window.startCardio = () => Timer.start(300);
 window.loadMoreHistory = () => {
     State.historyLimit = (State.historyLimit || 20) + 20;
     render();
+
+    // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
+    const btn = document.getElementById('load-more-btn');
+    if (btn) {
+        btn.focus();
+    } else {
+        const summaries = document.querySelectorAll('summary');
+        if (summaries.length > 0) summaries[summaries.length - 1].focus();
+    }
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
-window.imp = (el) => { const r = new FileReader(); r.onload = e => Storage.importData(e.target.result); if(el.files[0]) r.readAsText(el.files[0]); };
+window.imp = (el) => {
+    const file = el.files[0];
+    if (!file) return;
+
+    // Sentinel: DoS prevention - validate file size before reading
+    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+        Modal.show({
+            type: 'error',
+            title: 'File Too Large',
+            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+        });
+        el.value = ''; // Reset input
+        return;
+    }
+
+    const r = new FileReader();
+    r.onload = e => Storage.importData(e.target.result);
+    r.readAsText(file);
+};
 
 // === SVG CHARTING ===
 window.drawChart = (id) => {
@@ -2030,23 +2122,51 @@ window.drawChart = (id) => {
             return;
         }
 
-        const s = Storage.getSessions().filter(x=>x.exercises.find(e=>e.id===id && !e.usingAlternative));
-        if(s.length < 2) {
+        // Optimization: Single pass O(N) instead of filter/map chaining O(3N)
+        const sessions = Storage.getSessions();
+        const data = [];
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+
+        for (let i = 0; i < sessions.length; i++) {
+            const exercises = sessions[i].exercises;
+            for (let j = 0; j < exercises.length; j++) {
+                const ex = exercises[j];
+                if (ex.id === id) {
+                    if (!ex.usingAlternative) {
+                        const v = ex.weight;
+                        data.push({d: new Date(sessions[i].date), v});
+                        if (v < minVal) minVal = v;
+                        if (v > maxVal) maxVal = v;
+                    }
+                    break; // Stop looking in this session
+                }
+            }
+        }
+
+        if (data.length < 2) {
             div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
             return;
         }
 
-        const data = s.map(x=>({d:new Date(x.date), v:x.exercises.find(e=>e.id===id).weight}));
-        const max = Math.max(...data.map(d=>d.v)) * 1.1;
-        const min = Math.min(...data.map(d=>d.v)) * 0.9;
+        const max = maxVal * 1.1;
+        const min = minVal * 0.9;
         const W = div.clientWidth || 300;
         const H = Math.max(200, Math.min(300, W * 0.6));
         const P = 20;
-        const X = i => P + (i/(data.length-1)) * (W-P*2);
-        const Y = v => H - (P + ((v-min)/(max-min)) * (H-P*2));
+
+        // Sentinel: Sanitize coordinates to prevent SVG injection
+        const safeNum = (n) => {
+            const num = Number(n);
+            return (isFinite(num) && !isNaN(num)) ? num.toFixed(2) : '0';
+        };
+
+        const X = i => safeNum(P + (i/(data.length-1)) * (W-P*2));
+        const Y = v => safeNum(H - (P + ((v-min)/(max-min)) * (H-P*2)));
+
         let path = `M ${X(0)} ${Y(data[0].v)}`;
         data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
-        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}">
+        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight progression chart for ${EXERCISES.find(e => e.id === id)?.name || 'exercise'}">
             <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
             ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
         </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
@@ -2071,6 +2191,18 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     });
 });
 
+// Fix for listener leak: Global delegation for delete buttons
+const mainContent = document.getElementById('main-content');
+if (mainContent) {
+    mainContent.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete-session');
+        if (deleteBtn) {
+            const sessionId = deleteBtn.getAttribute('data-session-id');
+            if (sessionId) window.del(sessionId);
+        }
+    });
+}
+
 // === INITIALIZATION ===
 // Initialize all mission-critical systems
 (async function initializeSystems() {
@@ -2079,7 +2211,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 
     // 1. Initialize observability first (for logging other initializations)
     Observability.init();
-    Logger.info('🚀 Flexx Files v3.9 - Mission-Critical Mode');
+    Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
     Security.init();
@@ -2117,19 +2249,52 @@ document.querySelectorAll('.nav-item').forEach(btn => {
         }
     }
 
-    // 7. Register service worker for offline capability
+    // 7. Register service worker for offline capability with update detection
     if ('serviceWorker' in navigator) {
         try {
-            await navigator.serviceWorker.register('/sw.js');
+            const registration = await navigator.serviceWorker.register('/sw.js');
             Logger.info('Service worker registered');
+
+            // Listen for updates
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        // New service worker available - notify user
+                        showUpdateNotification(newWorker);
+                    }
+                });
+            });
+
+            // Detect controller change (update applied)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!window.__reloading) {
+                    window.__reloading = true;
+                    window.location.reload();
+                }
+            });
         } catch (e) {
             Logger.warn('Service worker registration failed', { error: e.message });
         }
     }
 
+    // Update notification handler
+    function showUpdateNotification(worker) {
+        Modal.show({
+            title: '✨ Update Available',
+            text: 'A new version of Flexx Files is ready. Reload to apply the latest improvements and fixes.',
+            type: 'confirm',
+            okText: 'Reload Now'
+        }).then(reload => {
+            if (reload) {
+                worker.postMessage({ type: 'SKIP_WAITING' });
+            }
+        });
+    }
+
     // 8. Track app startup
     Analytics.track('app_start', {
-        version: '3.9',
+        version: APP_VERSION,
         platform: navigator.platform,
         online: navigator.onLine
     });
@@ -2145,15 +2310,25 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     render();
 
     // 10. Auto-save drafts every 30 seconds if session is active
-    setInterval(() => {
+    const draftAutoSaveInterval = setInterval(() => {
         if (State.activeSession) {
             Storage.saveDraft(State.activeSession);
             Logger.debug('Draft auto-saved', { id: State.activeSession.id });
         }
     }, 30000); // 30 seconds
 
+    // 11. Clean up resources on page unload
+    window.addEventListener('beforeunload', () => {
+        clearInterval(draftAutoSaveInterval);
+        // Final draft save before unload
+        if (State.activeSession) {
+            Storage.saveDraft(State.activeSession);
+        }
+    });
+
 })().catch(error => {
     console.error('Fatal initialization error:', error);
+    ScreenReader.announce('Failed to initialize app. Please refresh the page.', 'assertive');
     alert('Failed to initialize app. Please refresh the page.');
 });
 ```
@@ -2168,6 +2343,8 @@ document.querySelectorAll('.nav-item').forEach(btn => {
  * Provides structured logging, performance monitoring, error tracking, and analytics
  * All data is stored locally - zero external tracking
  */
+
+import { STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
 // === LOG LEVELS ===
 const LOG_LEVELS = {
@@ -2273,13 +2450,20 @@ const Logger = {
 
     _persistError(logEntry) {
         try {
-            const errors = JSON.parse(localStorage.getItem('flexx_errors') || '[]');
-            errors.push(logEntry);
+            // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
+            // Clone entry to avoid modifying the in-memory log
+            const safeEntry = JSON.parse(JSON.stringify(logEntry));
+            if (safeEntry.context && safeEntry.context.stack) {
+                delete safeEntry.context.stack;
+            }
+
+            const errors = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
+            errors.push(safeEntry);
             // Keep only last 50 errors
             if (errors.length > 50) {
                 errors.shift();
             }
-            localStorage.setItem('flexx_errors', JSON.stringify(errors));
+            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(errors));
         } catch (e) {
             console.error('Failed to persist error:', e);
         }
@@ -2297,14 +2481,14 @@ const Logger = {
 
     getErrors() {
         try {
-            return JSON.parse(localStorage.getItem('flexx_errors') || '[]');
+            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
         } catch (e) {
             return [];
         }
     },
 
     clearErrors() {
-        localStorage.removeItem('flexx_errors');
+        localStorage.removeItem(`${STORAGE_PREFIX}errors`);
     },
 
     exportLogs() {
@@ -2313,7 +2497,7 @@ const Logger = {
             errors: this.getErrors(),
             metrics: Metrics.getMeasures(),
             exportDate: new Date().toISOString(),
-            appVersion: '3.9'
+            appVersion: APP_VERSION
         };
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2334,8 +2518,7 @@ const ErrorTracker = {
                 message: event.message,
                 filename: event.filename,
                 lineno: event.lineno,
-                colno: event.colno,
-                stack: event.error?.stack
+                colno: event.colno
             });
         });
 
@@ -2474,7 +2657,7 @@ export const Observability = {
         ErrorTracker.init();
         PerformanceMonitor.init();
         BatteryMonitor.init();
-        Logger.info('Observability system initialized', { version: '3.9' });
+        Logger.info('Observability system initialized', { version: APP_VERSION });
     },
 
     Logger,
@@ -2486,6 +2669,7 @@ export const Observability = {
 
 // Export individual modules for direct access
 export { Logger, Metrics, Analytics, ErrorTracker, PerformanceMonitor, BatteryMonitor };
+
 ```
 
 ## js/accessibility.js
@@ -2901,6 +3085,7 @@ export const Accessibility = {
 };
 
 export default Accessibility;
+
 ```
 
 ## js/security.js
@@ -2915,6 +3100,7 @@ export default Accessibility;
  */
 
 import { Logger } from './observability.js';
+import { RECOVERY_STATES, STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
 // === INPUT SANITIZATION ===
 export const Sanitizer = {
@@ -2975,18 +3161,43 @@ export const Sanitizer = {
 
     /**
      * Validate URL is safe (no javascript: protocol)
+     * Defense-in-depth: pre-validate before URL parsing to prevent encoding bypasses
      */
     sanitizeURL(url) {
         try {
-            const parsed = new URL(url);
-            // Only allow http, https protocols
-            if (!['http:', 'https:'].includes(parsed.protocol)) {
-                Logger.warn('Unsafe URL protocol detected', { url, protocol: parsed.protocol });
+            // Type check
+            if (typeof url !== 'string' || !url) {
+                Logger.warn('Invalid URL type', { url: typeof url });
                 return '#';
             }
-            return url;
+
+            // Normalize whitespace and control characters that could hide protocol
+            const normalized = url.trim().replace(/[\x00-\x1F\x7F]/g, '');
+
+            // Pre-validation: block dangerous protocols before URL parsing
+            // This prevents encoding bypasses like java%09script: or data:
+            const protocolMatch = normalized.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/) || ['', ''];
+            const protocol = protocolMatch[1].toLowerCase();
+
+            const dangerousProtocols = ['javascript', 'data', 'vbscript', 'file', 'about'];
+            if (dangerousProtocols.includes(protocol)) {
+                Logger.warn('Dangerous URL protocol blocked', { url: normalized.substring(0, 50), protocol });
+                return '#';
+            }
+
+            // Parse and validate structure
+            const parsed = new URL(normalized);
+
+            // Only allow http, https protocols (double-check after parsing)
+            if (!['http:', 'https:'].includes(parsed.protocol)) {
+                Logger.warn('Unsafe URL protocol detected', { url: normalized.substring(0, 50), protocol: parsed.protocol });
+                return '#';
+            }
+
+            // Return normalized URL to prevent any residual encoding issues
+            return parsed.href;
         } catch (e) {
-            Logger.warn('Invalid URL', { url });
+            Logger.warn('Invalid URL format', { error: e.message });
             return '#';
         }
     }
@@ -3101,6 +3312,10 @@ export const Validator = {
             return { valid: false, errors: [`Missing fields: ${missing.join(', ')}`] };
         }
 
+        // Validate types
+        if (typeof exercise.id !== 'string') return { valid: false, errors: ['id must be a string'] };
+        if (typeof exercise.name !== 'string') return { valid: false, errors: ['name must be a string'] };
+
         // Validate weight is a reasonable number
         if (typeof exercise.weight !== 'number' || exercise.weight < 0 || exercise.weight > 2000) {
             return { valid: false, errors: ['Weight must be between 0 and 2000 lbs'] };
@@ -3183,73 +3398,6 @@ export const CSP = {
     isEnabled() {
         const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
         return !!meta;
-    }
-};
-
-// === SECURE STORAGE ===
-export const SecureStorage = {
-    /**
-     * Encrypt data before storing (basic XOR cipher for demonstration)
-     * For production, use Web Crypto API with proper key management
-     */
-    encrypt(data, key = 'flexx-secure-key') {
-        const str = JSON.stringify(data);
-        let encrypted = '';
-
-        for (let i = 0; i < str.length; i++) {
-            encrypted += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-        }
-
-        return btoa(encrypted); // Base64 encode
-    },
-
-    /**
-     * Decrypt data from storage
-     */
-    decrypt(encrypted, key = 'flexx-secure-key') {
-        try {
-            const decoded = atob(encrypted);
-            let decrypted = '';
-
-            for (let i = 0; i < decoded.length; i++) {
-                decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-            }
-
-            return JSON.parse(decrypted);
-        } catch (e) {
-            Logger.error('Failed to decrypt data', { error: e.message });
-            return null;
-        }
-    },
-
-    /**
-     * Securely store data in localStorage
-     */
-    setItem(key, value, encrypt = false) {
-        try {
-            const data = encrypt ? this.encrypt(value) : JSON.stringify(value);
-            localStorage.setItem(key, data);
-            Logger.debug('Secure storage: item saved', { key, encrypted: encrypt });
-            return true;
-        } catch (e) {
-            Logger.error('Failed to save to secure storage', { key, error: e.message });
-            return false;
-        }
-    },
-
-    /**
-     * Securely retrieve data from localStorage
-     */
-    getItem(key, encrypted = false) {
-        try {
-            const data = localStorage.getItem(key);
-            if (!data) return null;
-
-            return encrypted ? this.decrypt(data) : JSON.parse(data);
-        } catch (e) {
-            Logger.error('Failed to read from secure storage', { key, error: e.message });
-            return null;
-        }
     }
 };
 
@@ -3380,7 +3528,7 @@ export const AuditLog = {
 
     persist(entry) {
         try {
-            const audits = JSON.parse(localStorage.getItem('flexx_audit_log') || '[]');
+            const audits = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
             audits.push(entry);
 
             // Keep only last 50 critical events
@@ -3388,7 +3536,7 @@ export const AuditLog = {
                 audits.shift();
             }
 
-            localStorage.setItem('flexx_audit_log', JSON.stringify(audits));
+            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(audits));
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
         }
@@ -3400,7 +3548,7 @@ export const AuditLog = {
 
     getPersistedLogs() {
         try {
-            return JSON.parse(localStorage.getItem('flexx_audit_log') || '[]');
+            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
         } catch (e) {
             return [];
         }
@@ -3408,7 +3556,7 @@ export const AuditLog = {
 
     clear() {
         this.logs = [];
-        localStorage.removeItem('flexx_audit_log');
+        localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
     }
 };
 
@@ -3416,20 +3564,20 @@ export const AuditLog = {
 export const Security = {
     init() {
         // Log initialization
-        AuditLog.log('security_init', { version: '3.9' });
+        AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
     },
 
     Sanitizer,
     Validator,
     CSP,
-    SecureStorage,
     RateLimiter,
     IntegrityChecker,
     AuditLog
 };
 
 export default Security;
+
 ```
 
 ## js/i18n.js
@@ -3832,6 +3980,7 @@ export default {
     NumberFormatter,
     Timezone
 };
+
 ```
 
 ## sw.js
@@ -3839,10 +3988,12 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.2';
+const CACHE_NAME = 'flexx-v3.9.6';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
+    './js/accessibility.js', './js/constants.js', './js/i18n.js',
+    './js/observability.js', './js/security.js',
     './manifest.json'
 ];
 

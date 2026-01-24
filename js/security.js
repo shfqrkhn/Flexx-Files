@@ -5,7 +5,7 @@
  */
 
 import { Logger } from './observability.js';
-import { RECOVERY_STATES, STORAGE_PREFIX } from './constants.js';
+import { RECOVERY_STATES, STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
 // === INPUT SANITIZATION ===
 export const Sanitizer = {
@@ -469,7 +469,7 @@ export const AuditLog = {
 export const Security = {
     init() {
         // Log initialization
-        AuditLog.log('security_init', { version: '3.9' });
+        AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
     },
 
