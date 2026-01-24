@@ -3018,10 +3018,73 @@ export const Validator = {
             return { valid: false, errors: ['Invalid date format'] };
         }
 
+        // Validate recovery status
+        if (!Object.values(RECOVERY_STATES).includes(session.recoveryStatus)) {
+            Logger.error('Invalid session: bad recovery status', { status: session.recoveryStatus });
+            return { valid: false, errors: ['Invalid recovery status'] };
+        }
+
         // Validate exercises array
         if (!Array.isArray(session.exercises)) {
             Logger.error('Invalid session: exercises not an array');
             return { valid: false, errors: ['Exercises must be an array'] };
+        }
+
+        // Validate each exercise in the array
+        for (const [index, exercise] of session.exercises.entries()) {
+            const result = this.validateExercise(exercise);
+            if (!result.valid) {
+                Logger.error('Invalid session: invalid exercise', { index, errors: result.errors });
+                return {
+                    valid: false,
+                    errors: [`Exercise ${index + 1}: ${result.errors.join(', ')}`]
+                };
+            }
+        }
+
+        // Validate optional warmup field
+        if (session.warmup) {
+            if (!Array.isArray(session.warmup)) {
+                return { valid: false, errors: ['Warmup must be an array'] };
+            }
+            // Check elements are objects with id and completed
+            for (const [i, w] of session.warmup.entries()) {
+                if (typeof w !== 'object' || !w || typeof w.id !== 'string' || typeof w.completed !== 'boolean') {
+                    return { valid: false, errors: [`Warmup item ${i} invalid`] };
+                }
+                // Optional altUsed must be string if present
+                if (w.altUsed !== undefined && w.altUsed !== null && typeof w.altUsed !== 'string') {
+                    return { valid: false, errors: [`Warmup item ${i} altUsed must be string`] };
+                }
+            }
+        }
+
+        // Validate optional cardio field
+        if (session.cardio) {
+            if (typeof session.cardio !== 'object') {
+                return { valid: false, errors: ['Cardio must be an object'] };
+            }
+            if (typeof session.cardio.type !== 'string' || typeof session.cardio.completed !== 'boolean') {
+                return { valid: false, errors: ['Cardio object invalid'] };
+            }
+        }
+
+        // Validate optional decompress field
+        if (session.decompress) {
+            // Can be array or object (legacy)
+            if (Array.isArray(session.decompress)) {
+                for (const [i, d] of session.decompress.entries()) {
+                    if (typeof d !== 'object' || !d || typeof d.id !== 'string' || typeof d.completed !== 'boolean') {
+                        return { valid: false, errors: [`Decompress item ${i} invalid`] };
+                    }
+                }
+            } else if (typeof session.decompress === 'object') {
+                if (typeof session.decompress.completed !== 'boolean') {
+                    return { valid: false, errors: ['Decompress object invalid'] };
+                }
+            } else {
+                return { valid: false, errors: ['Decompress must be array or object'] };
+            }
         }
 
         return { valid: true, errors: [] };
@@ -3041,6 +3104,23 @@ export const Validator = {
         // Validate weight is a reasonable number
         if (typeof exercise.weight !== 'number' || exercise.weight < 0 || exercise.weight > 2000) {
             return { valid: false, errors: ['Weight must be between 0 and 2000 lbs'] };
+        }
+
+        // Validate optional fields if present
+        if (exercise.setsCompleted !== undefined && (typeof exercise.setsCompleted !== 'number' || exercise.setsCompleted < 0)) {
+            return { valid: false, errors: ['setsCompleted must be a positive number'] };
+        }
+        if (exercise.completed !== undefined && typeof exercise.completed !== 'boolean') {
+            return { valid: false, errors: ['completed must be boolean'] };
+        }
+        if (exercise.usingAlternative !== undefined && typeof exercise.usingAlternative !== 'boolean') {
+            return { valid: false, errors: ['usingAlternative must be boolean'] };
+        }
+        if (exercise.altName !== undefined && exercise.altName !== null && typeof exercise.altName !== 'string') {
+            return { valid: false, errors: ['altName must be string'] };
+        }
+        if (exercise.skipped !== undefined && typeof exercise.skipped !== 'boolean') {
+            return { valid: false, errors: ['skipped must be boolean'] };
         }
 
         return { valid: true, errors: [] };
@@ -3759,16 +3839,17 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.8';
+const CACHE_NAME = 'flexx-v3.9.2';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
     './manifest.json'
 ];
 
-self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)).then(()=>self.skipWaiting())));
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(k => Promise.all(k.map(n => n !== CACHE_NAME ? caches.delete(n) : null))).then(()=>self.clients.claim())));
 self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('./index.html')))));
+self.addEventListener('message', e => { if (e.data?.type === 'SKIP_WAITING') self.skipWaiting(); });
 ```
 
 ## manifest.json
