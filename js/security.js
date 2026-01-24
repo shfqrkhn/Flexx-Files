@@ -5,6 +5,7 @@
  */
 
 import { Logger } from './observability.js';
+import { RECOVERY_STATES } from './constants.js';
 
 // === INPUT SANITIZATION ===
 export const Sanitizer = {
@@ -131,6 +132,12 @@ export const Validator = {
         if (isNaN(new Date(session.date).getTime())) {
             Logger.error('Invalid session: bad date', { date: session.date });
             return { valid: false, errors: ['Invalid date format'] };
+        }
+
+        // Validate recovery status
+        if (!Object.values(RECOVERY_STATES).includes(session.recoveryStatus)) {
+            Logger.error('Invalid session: bad recovery status', { status: session.recoveryStatus });
+            return { valid: false, errors: ['Invalid recovery status'] };
         }
 
         // Validate exercises array
