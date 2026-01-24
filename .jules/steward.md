@@ -90,3 +90,43 @@
 - `tests/security_validation_fix.test.js` - Added test cases for invalid optional fields
 
 **Verification:** Regression tests pass (10/10); new security validation tests pass (15/15); bad data confirmed rejected.
+
+---
+
+## 2026-01-24 - [🛡️ Sentinel] - Inconsistent URL Sanitization at Render Boundaries
+
+**Insight:** URL sanitization was applied inconsistently across the codebase. Dynamic URL update functions (`swapAlt()` at line 460, `swapCardioLink()` at line 484) correctly used `Sanitizer.sanitizeURL()`, but initial render functions (`renderWarmup()`, `renderLifting()`, `renderCardio()`, `renderDecompress()`) directly injected config URLs into href attributes without sanitization. This created a defense-in-depth vulnerability where config tampering (supply chain attack, code injection) could inject malicious `javascript:` protocol URLs that bypass CSP via user clicks.
+
+**Protocol:**
+- ALWAYS apply URL sanitization at ALL render boundaries, not just dynamic updates
+- Defense-in-depth principle: sanitize even "trusted" config data at output boundaries
+- Pattern: Use `Sanitizer.sanitizeURL()` for EVERY href attribute assignment, regardless of data source
+- Security controls must be applied systematically, not selectively based on perceived trust level
+- Code review focus: verify sanitization is consistent across initial renders AND dynamic updates
+
+**Files Modified:**
+- `js/app.js:217` - Warmup video links now sanitized
+- `js/app.js:249` - Exercise video links now sanitized
+- `js/app.js:277` - Cardio video links now sanitized
+- `js/app.js:291` - Decompression video links now sanitized
+
+**Verification:** URL sanitization test suite passes (18/18); all video href attributes now use Sanitizer.sanitizeURL(); defense-in-depth enforced consistently.
+
+---
+
+## 2026-01-24 - [⚡ Bolt] - Incomplete Service Worker Cache Breaking Offline Capability
+
+**Insight:** The service worker cache (sw.js:2-6) only included 3 of 8 JS modules required by the app. Missing modules: `accessibility.js`, `constants.js`, `i18n.js`, `observability.js`, `security.js`. When users went offline, the app would load index.html and app.js successfully from cache, but fail when app.js attempted to import the missing modules, causing complete app failure. The app claimed "Offline-first" capability but was critically broken offline.
+
+**Protocol:**
+- ALWAYS audit service worker ASSETS array against actual dependency graph
+- NEVER assume cache completeness - verify ALL transitive dependencies are included
+- When adding new JS modules to the app, ALWAYS update sw.js ASSETS array
+- Pattern: Run dependency analysis (`grep -h "^import.*from" js/*.js | sort -u`) to verify all imports are cached
+- ALWAYS bump cache version (CACHE_NAME) when updating ASSETS to force refresh on existing installations
+- Test offline: Use DevTools Network → Offline mode to verify app loads without network
+
+**Files Modified:**
+- `sw.js:1-7` - Added 5 missing modules to ASSETS array, bumped cache version to v3.9.3
+
+**Verification:** Manual verification in DevTools Network Offline mode; all ES6 module imports resolve from cache; app functions completely offline.

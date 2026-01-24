@@ -35,12 +35,14 @@ const Modal = {
                 const cancel = document.createElement('button');
                 cancel.className = 'btn-modal btn-ghost';
                 cancel.innerText = 'Cancel';
+                cancel.setAttribute('aria-label', 'Cancel and close dialog');
                 cancel.onclick = () => this.close(false);
                 this.actions.appendChild(cancel);
             }
             const ok = document.createElement('button');
             ok.className = opts.danger ? 'btn-modal btn-danger' : 'btn-modal btn-confirm';
             ok.innerText = opts.okText || 'OK';
+            ok.setAttribute('aria-label', opts.okText ? `${opts.okText} and close dialog` : 'Confirm and close dialog');
             ok.onclick = () => this.close(true);
             this.actions.appendChild(ok);
             this.el.classList.add('active');
@@ -214,7 +216,7 @@ function renderWarmup(c) {
                         <input type="checkbox" class="big-check" id="w-${w.id}">
                         <div><div id="name-${w.id}">${w.name}</div><div class="text-xs">${w.reps}</div></div>
                     </label>
-                    <a id="vid-${w.id}" href="${w.video}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${w.name}">🎥</a>
+                    <a id="vid-${w.id}" href="${Sanitizer.sanitizeURL(w.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${w.name}">🎥</a>
                 </div>
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
@@ -223,7 +225,7 @@ function renderWarmup(c) {
                     </select>
                 </details>
             </div>`).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')">Start Lifting</button></div>`;
+        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
 }
 
 function renderLifting(c) {
@@ -246,7 +248,7 @@ function renderLifting(c) {
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${ex.name}</h2>
                             <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${ex.video}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${ex.name}">🎥</a>
+                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(ex.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${ex.name}">🎥</a>
                     </div>
                     <div class="stepper-control">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${ex.name}">−</button>
@@ -266,7 +268,7 @@ function renderLifting(c) {
                     </details>
                 </div>`;
             }).join('')}
-            <button class="btn btn-primary" onclick="window.nextPhase('cardio')">Next: Cardio</button>
+            <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="Proceed to cardio phase">Next: Cardio</button>
         </div>`;
 }
 
@@ -274,11 +276,11 @@ function renderCardio(c) {
     const defaultLink = CARDIO_OPTIONS[0].video;
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${defaultLink}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${CARDIO_OPTIONS[0].name}">🎥</a></div>
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(defaultLink)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${CARDIO_OPTIONS[0].name}">🎥</a></div>
             <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
-            <button class="btn btn-secondary" onclick="window.startCardio()">Start 5m Timer</button>
+            <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
             <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></label>
-        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')">Next: Decompress</button></div>`;
+        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')" aria-label="Proceed to decompression phase">Next: Decompress</button></div>`;
 }
 
 function renderDecompress(c) {
@@ -288,7 +290,7 @@ function renderDecompress(c) {
                 <div class="card">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                         <h3 id="name-${d.id}">${d.name}</h3>
-                        <a id="vid-${d.id}" href="${d.video}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
+                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(d.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
                     </div>
                     ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
                     <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
@@ -300,7 +302,7 @@ function renderDecompress(c) {
                         </select>
                     </details>
                 </div>`).join('')}
-            <button class="btn btn-primary" onclick="window.finish()">Save & Finish</button>
+            <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
 
@@ -347,7 +349,7 @@ function renderHistory(c) {
 }
 
 function renderProgress(c) {
-    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
+    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" aria-label="Select exercise for progress chart" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
     setTimeout(()=>window.drawChart('hinge'),100);
 }
 
@@ -364,7 +366,7 @@ function renderSettings(c) {
                            onblur="this.previousElementSibling.style.outline=''"
                            style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%">
                 </div>
-                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()">Factory Reset</button>
+                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
         </div>`;
 
