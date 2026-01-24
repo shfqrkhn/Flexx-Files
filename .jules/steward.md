@@ -90,3 +90,24 @@
 - `tests/security_validation_fix.test.js` - Added test cases for invalid optional fields
 
 **Verification:** Regression tests pass (10/10); new security validation tests pass (15/15); bad data confirmed rejected.
+
+---
+
+## 2026-01-24 - [🛡️ Sentinel] - Inconsistent URL Sanitization at Render Boundaries
+
+**Insight:** URL sanitization was applied inconsistently across the codebase. Dynamic URL update functions (`swapAlt()` at line 460, `swapCardioLink()` at line 484) correctly used `Sanitizer.sanitizeURL()`, but initial render functions (`renderWarmup()`, `renderLifting()`, `renderCardio()`, `renderDecompress()`) directly injected config URLs into href attributes without sanitization. This created a defense-in-depth vulnerability where config tampering (supply chain attack, code injection) could inject malicious `javascript:` protocol URLs that bypass CSP via user clicks.
+
+**Protocol:**
+- ALWAYS apply URL sanitization at ALL render boundaries, not just dynamic updates
+- Defense-in-depth principle: sanitize even "trusted" config data at output boundaries
+- Pattern: Use `Sanitizer.sanitizeURL()` for EVERY href attribute assignment, regardless of data source
+- Security controls must be applied systematically, not selectively based on perceived trust level
+- Code review focus: verify sanitization is consistent across initial renders AND dynamic updates
+
+**Files Modified:**
+- `js/app.js:217` - Warmup video links now sanitized
+- `js/app.js:249` - Exercise video links now sanitized
+- `js/app.js:277` - Cardio video links now sanitized
+- `js/app.js:291` - Decompression video links now sanitized
+
+**Verification:** URL sanitization test suite passes (18/18); all video href attributes now use Sanitizer.sanitizeURL(); defense-in-depth enforced consistently.
