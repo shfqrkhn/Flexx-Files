@@ -225,7 +225,7 @@ function renderWarmup(c) {
                     </select>
                 </details>
             </div>`).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')">Start Lifting</button></div>`;
+        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
 }
 
 function renderLifting(c) {
@@ -268,7 +268,7 @@ function renderLifting(c) {
                     </details>
                 </div>`;
             }).join('')}
-            <button class="btn btn-primary" onclick="window.nextPhase('cardio')">Next: Cardio</button>
+            <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="Proceed to cardio phase">Next: Cardio</button>
         </div>`;
 }
 
@@ -278,9 +278,9 @@ function renderCardio(c) {
         <div class="container"><h1>Cardio</h1><div class="card">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(defaultLink)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${CARDIO_OPTIONS[0].name}">🎥</a></div>
             <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
-            <button class="btn btn-secondary" onclick="window.startCardio()">Start 5m Timer</button>
+            <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
             <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></label>
-        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')">Next: Decompress</button></div>`;
+        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')" aria-label="Proceed to decompression phase">Next: Decompress</button></div>`;
 }
 
 function renderDecompress(c) {
@@ -302,7 +302,7 @@ function renderDecompress(c) {
                         </select>
                     </details>
                 </div>`).join('')}
-            <button class="btn btn-primary" onclick="window.finish()">Save & Finish</button>
+            <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
 
@@ -366,7 +366,7 @@ function renderSettings(c) {
                            onblur="this.previousElementSibling.style.outline=''"
                            style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%">
                 </div>
-                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()">Factory Reset</button>
+                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
         </div>`;
 
