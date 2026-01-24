@@ -222,12 +222,12 @@ export const Validator = {
         if (typeof exercise.name !== 'string') return { valid: false, errors: ['name must be a string'] };
 
         // Validate weight is a reasonable number
-        if (typeof exercise.weight !== 'number' || exercise.weight < 0 || exercise.weight > 2000) {
+        if (typeof exercise.weight !== 'number' || isNaN(exercise.weight) || exercise.weight < 0 || exercise.weight > 2000) {
             return { valid: false, errors: ['Weight must be between 0 and 2000 lbs'] };
         }
 
         // Validate optional fields if present
-        if (exercise.setsCompleted !== undefined && (typeof exercise.setsCompleted !== 'number' || exercise.setsCompleted < 0)) {
+        if (exercise.setsCompleted !== undefined && (typeof exercise.setsCompleted !== 'number' || isNaN(exercise.setsCompleted) || exercise.setsCompleted < 0)) {
             return { valid: false, errors: ['setsCompleted must be a positive number'] };
         }
         if (exercise.completed !== undefined && typeof exercise.completed !== 'boolean') {

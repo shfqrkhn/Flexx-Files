@@ -137,5 +137,30 @@ const baseSession = {
     assert(result.errors.some(e => e.includes('altUsed must be string')), 'Correct error for altUsed');
 }
 
+// 9. Numeric Integrity (NaN checks)
+{
+    const session = {
+        ...baseSession,
+        exercises: [{
+            id: 'ex1', name: 'Ex 1', weight: NaN
+        }]
+    };
+    const result = Validator.validateSession(session);
+    assert(!result.valid, 'Exercise with NaN weight is invalid');
+    assert(result.errors.some(e => e.includes('Weight must be between')), 'Correct error for NaN weight');
+}
+{
+    const session = {
+        ...baseSession,
+        exercises: [{
+            id: 'ex1', name: 'Ex 1', weight: 100,
+            setsCompleted: NaN
+        }]
+    };
+    const result = Validator.validateSession(session);
+    assert(!result.valid, 'Exercise with NaN setsCompleted is invalid');
+    assert(result.errors.some(e => e.includes('setsCompleted must be a positive number')), 'Correct error for NaN setsCompleted');
+}
+
 console.log(`\nTests Completed: ${passed} Passed, ${failed} Failed`);
 if (failed > 0) process.exit(1);

@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.8 (Palette Update)    
+**Version:** 3.9.9 (Palette Update)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.8';
+export const APP_VERSION = '3.9.9';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -907,6 +907,7 @@ export const ERROR_MESSAGES = {
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };
+
 ```
 
 ## js/core.js
@@ -3440,12 +3441,12 @@ export const Validator = {
         if (typeof exercise.name !== 'string') return { valid: false, errors: ['name must be a string'] };
 
         // Validate weight is a reasonable number
-        if (typeof exercise.weight !== 'number' || exercise.weight < 0 || exercise.weight > 2000) {
+        if (typeof exercise.weight !== 'number' || isNaN(exercise.weight) || exercise.weight < 0 || exercise.weight > 2000) {
             return { valid: false, errors: ['Weight must be between 0 and 2000 lbs'] };
         }
 
         // Validate optional fields if present
-        if (exercise.setsCompleted !== undefined && (typeof exercise.setsCompleted !== 'number' || exercise.setsCompleted < 0)) {
+        if (exercise.setsCompleted !== undefined && (typeof exercise.setsCompleted !== 'number' || isNaN(exercise.setsCompleted) || exercise.setsCompleted < 0)) {
             return { valid: false, errors: ['setsCompleted must be a positive number'] };
         }
         if (exercise.completed !== undefined && typeof exercise.completed !== 'boolean') {
@@ -3700,6 +3701,7 @@ export const Security = {
 };
 
 export default Security;
+
 ```
 
 ## js/i18n.js
@@ -4109,7 +4111,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.8';
+const CACHE_NAME = 'flexx-v3.9.9';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
