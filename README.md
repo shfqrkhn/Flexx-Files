@@ -3873,4 +3873,23 @@ self.addEventListener('message', e => { if (e.data?.type === 'SKIP_WAITING') sel
 }
 ```
 
+---
+
+# 4. PROTOCOL PHILOSOPHY
+
+### The 7 Pillars of Movement
+1.  **Hinge:** Deadlifts (Posterior Chain)
+2.  **Squat:** Knee Dominant (Quads)
+3.  **Push (Vertical):** Overhead Press (Shoulders)
+4.  **Push (Horizontal):** Bench Press (Chest/Triceps)
+5.  **Pull:** Rows/Chins (Back/Biceps)
+6.  **Carry:** Farmers Walk (Core/Grip)
+7.  **Corrective:** Rotational/Anti-Rotational (Injury Prevention)
+
+### The 4-Phase System
+1.  **Warmup:** Raise body temp, prime joints (5 mins).
+2.  **Lifting:** Heavy compound movements (25-35 mins).
+3.  **Cardio:** High intensity interval or steady state (5-10 mins).
+4.  **Decompress:** Parasympathetic reset to kickstart recovery (5 mins).
+
 --- END OF FILE FLEXX-FILES-COMPLETE.md ---
