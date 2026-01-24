@@ -353,14 +353,6 @@ function renderHistory(c) {
         loadMoreBtn.addEventListener('click', window.loadMoreHistory);
     }
 
-    // Sentinel: Event delegation for delete buttons (prevents XSS from inline onclick)
-    c.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('.btn-delete-session');
-        if (deleteBtn) {
-            const sessionId = deleteBtn.getAttribute('data-session-id');
-            if (sessionId) window.del(sessionId);
-        }
-    });
 }
 
 function renderProgress(c) {
@@ -742,6 +734,18 @@ document.querySelectorAll('.nav-item').forEach(btn => {
         render();
     });
 });
+
+// Fix for listener leak: Global delegation for delete buttons
+const mainContent = document.getElementById('main-content');
+if (mainContent) {
+    mainContent.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete-session');
+        if (deleteBtn) {
+            const sessionId = deleteBtn.getAttribute('data-session-id');
+            if (sessionId) window.del(sessionId);
+        }
+    });
+}
 
 // === INITIALIZATION ===
 // Initialize all mission-critical systems
