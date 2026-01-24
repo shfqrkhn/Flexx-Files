@@ -4,7 +4,7 @@
  */
 
 // === WORKOUT TIMING ===
-export const REST_PERIOD_HOURS = 48; // Minimum hours between workouts
+export const REST_PERIOD_HOURS = 24; // Minimum hours between workouts
 export const WEEK_WARNING_HOURS = 168; // Warn if more than 1 week since last workout (7 days)
 export const SESSIONS_PER_WEEK = 3; // Used for week number calculation
 export const DEFAULT_REST_TIMER_SECONDS = 90; // Default rest between sets
@@ -39,6 +39,7 @@ export const PERFORMANCE_LONG_TASK_MS = 50;
 export const RATE_LIMIT_MAX_ATTEMPTS = 5;
 export const RATE_LIMIT_WINDOW_MS = 60000; // 1 minute
 export const SESSION_DRAFT_AUTOSAVE_INTERVAL_MS = 30000; // 30 seconds
+export const MAX_IMPORT_FILE_SIZE_MB = 10; // Maximum file size for data imports (DoS prevention)
 
 // === ACCESSIBILITY ===
 export const A11Y_ANNOUNCE_DELAY_MS = 100;
@@ -83,6 +84,7 @@ export const ERROR_MESSAGES = {
     IMPORT_INVALID_FORMAT: 'Invalid file format: sessions must be an array',
     IMPORT_MISSING_FIELDS: 'Invalid file: some sessions are missing required fields',
     IMPORT_PARSE_ERROR: 'Invalid file: Please ensure this is a valid Flexx Files backup file.',
+    IMPORT_FILE_TOO_LARGE: 'File too large. Maximum size is 10MB.',
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };

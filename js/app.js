@@ -4,6 +4,7 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
+import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES } from './constants.js';
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -83,7 +84,12 @@ const Timer = {
     },
     tick() {
         const rem = Math.ceil((this.endTime - Date.now()) / 1000);
-        if (rem <= 0) { this.stop(); Haptics.success(); return; }
+        if (rem <= 0) {
+            this.stop();
+            Haptics.success();
+            ScreenReader.announce('Rest period complete. Ready for next set.');
+            return;
+        }
         const m = Math.floor(rem / 60);
         const s = rem % 60;
         const timerVal = document.getElementById('timer-val');
@@ -615,7 +621,26 @@ window.loadMoreHistory = () => {
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
-window.imp = (el) => { const r = new FileReader(); r.onload = e => Storage.importData(e.target.result); if(el.files[0]) r.readAsText(el.files[0]); };
+window.imp = (el) => {
+    const file = el.files[0];
+    if (!file) return;
+
+    // Sentinel: DoS prevention - validate file size before reading
+    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+        Modal.show({
+            type: 'error',
+            title: 'File Too Large',
+            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+        });
+        el.value = ''; // Reset input
+        return;
+    }
+
+    const r = new FileReader();
+    r.onload = e => Storage.importData(e.target.result);
+    r.readAsText(file);
+};
 
 // === SVG CHARTING ===
 window.drawChart = (id) => {
@@ -658,11 +683,19 @@ window.drawChart = (id) => {
         const W = div.clientWidth || 300;
         const H = Math.max(200, Math.min(300, W * 0.6));
         const P = 20;
-        const X = i => P + (i/(data.length-1)) * (W-P*2);
-        const Y = v => H - (P + ((v-min)/(max-min)) * (H-P*2));
+
+        // Sentinel: Sanitize coordinates to prevent SVG injection
+        const safeNum = (n) => {
+            const num = Number(n);
+            return (isFinite(num) && !isNaN(num)) ? num.toFixed(2) : '0';
+        };
+
+        const X = i => safeNum(P + (i/(data.length-1)) * (W-P*2));
+        const Y = v => safeNum(H - (P + ((v-min)/(max-min)) * (H-P*2)));
+
         let path = `M ${X(0)} ${Y(data[0].v)}`;
         data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
-        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}">
+        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight progression chart for ${EXERCISES.find(e => e.id === id)?.name || 'exercise'}">
             <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
             ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
         </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
