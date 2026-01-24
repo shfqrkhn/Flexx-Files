@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.7 (Palette Update)
+**Version:** 3.9.8 (Palette Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
@@ -672,6 +672,15 @@ export const EXERCISES = [
         }
     },
     {
+        id: 'push_incline', name: 'Incline DB Press', category: 'H-PUSH', sets: 3, reps: 10,
+        video: 'https://www.youtube.com/results?search_query=incline+dumbbell+press+form',
+        alternatives: ['Incline Barbell Press', 'Decline Push-up'],
+        altLinks: {
+            'Incline Barbell Press': 'https://www.youtube.com/results?search_query=incline+barbell+bench+press+form',
+            'Decline Push-up': 'https://www.youtube.com/results?search_query=decline+push+up+form'
+        }
+    },
+    {
         id: 'push_vert', name: 'Standing DB OHP', category: 'V-PUSH', sets: 3, reps: 10,
         video: 'https://www.youtube.com/results?search_query=standing+dumbbell+overhead+press+form',
         alternatives: ['Seated DB Press', 'Barbell Overhead Press'],
@@ -687,6 +696,15 @@ export const EXERCISES = [
         altLinks: {
             'Single Arm DB Row (Bench)': 'https://www.youtube.com/results?search_query=single+arm+dumbbell+row+on+bench+form',
             'Barbell Row': 'https://www.youtube.com/results?search_query=barbell+bent+over+row+form'
+        }
+    },
+    {
+        id: 'pull_vert', name: 'Lat Pulldown', category: 'PULL', sets: 3, reps: 12,
+        video: 'https://www.youtube.com/results?search_query=lat+pulldown+form',
+        alternatives: ['Pull Up', 'Band Pulldown'],
+        altLinks: {
+            'Pull Up': 'https://www.youtube.com/results?search_query=pull+up+form',
+            'Band Pulldown': 'https://www.youtube.com/results?search_query=resistance+band+lat+pulldown'
         }
     },
     {
@@ -826,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.7';
+export const APP_VERSION = '3.9.8';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -2441,6 +2459,7 @@ if (mainContent) {
  */
 
 import { STORAGE_PREFIX, APP_VERSION } from './constants.js';
+import { Sanitizer } from './security.js';
 
 // === LOG LEVELS ===
 const LOG_LEVELS = {
@@ -2549,8 +2568,18 @@ const Logger = {
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
             const safeEntry = JSON.parse(JSON.stringify(logEntry));
-            if (safeEntry.context && safeEntry.context.stack) {
-                delete safeEntry.context.stack;
+
+            // Sanitize string properties to prevent stored XSS
+            safeEntry.message = Sanitizer.sanitizeString(safeEntry.message);
+            if (safeEntry.context) {
+                if (safeEntry.context.stack) {
+                    delete safeEntry.context.stack;
+                }
+                for (const key in safeEntry.context) {
+                    if (typeof safeEntry.context[key] === 'string') {
+                        safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);
+                    }
+                }
             }
 
             const errors = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
@@ -2765,7 +2794,6 @@ export const Observability = {
 
 // Export individual modules for direct access
 export { Logger, Metrics, Analytics, ErrorTracker, PerformanceMonitor, BatteryMonitor };
-
 ```
 
 ## js/accessibility.js
@@ -3181,7 +3209,6 @@ export const Accessibility = {
 };
 
 export default Accessibility;
-
 ```
 
 ## js/security.js
@@ -3673,7 +3700,6 @@ export const Security = {
 };
 
 export default Security;
-
 ```
 
 ## js/i18n.js
@@ -4076,7 +4102,6 @@ export default {
     NumberFormatter,
     Timezone
 };
-
 ```
 
 ## sw.js
@@ -4084,7 +4109,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.7';
+const CACHE_NAME = 'flexx-v3.9.8';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
