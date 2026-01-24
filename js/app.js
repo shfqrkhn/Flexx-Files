@@ -121,7 +121,10 @@ function render() {
 
         // Update active tab state
         document.querySelectorAll('.nav-item').forEach(el => {
-            el.classList.toggle('active', el.dataset.view === State.view);
+            const isActive = el.dataset.view === State.view;
+            el.classList.toggle('active', isActive);
+            if (isActive) el.setAttribute('aria-current', 'page');
+            else el.removeAttribute('aria-current');
         });
 
         main.innerHTML = '';
@@ -261,7 +264,7 @@ function renderLifting(c) {
                         <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${ex.name}">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${ex.name}">+</button>
                     </div>
-                    <div class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
+                    <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
                     <div class="set-group" role="group" aria-label="Sets for ${ex.name}">
                         ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
                     </div>
@@ -353,14 +356,6 @@ function renderHistory(c) {
         loadMoreBtn.addEventListener('click', window.loadMoreHistory);
     }
 
-    // Sentinel: Event delegation for delete buttons (prevents XSS from inline onclick)
-    c.addEventListener('click', (e) => {
-        const deleteBtn = e.target.closest('.btn-delete-session');
-        if (deleteBtn) {
-            const sessionId = deleteBtn.getAttribute('data-session-id');
-            if (sessionId) window.del(sessionId);
-        }
-    });
 }
 
 function renderProgress(c) {
@@ -434,7 +429,15 @@ window.modW = (id, d) => {
             return;
         }
         const currentValue = parseFloat(el.value) || 0;
-        el.value = Math.max(0, currentValue + d);
+        const newValue = Math.max(0, currentValue + d);
+        el.value = newValue;
+
+        // Palette: Update plate math display in real-time
+        const plateEl = document.getElementById(`pl-${id}`);
+        if (plateEl) {
+            plateEl.textContent = `${Calculator.getPlateLoad(newValue)} / side`;
+        }
+
         Haptics.light();
     } catch (e) {
         console.error('Error modifying weight:', e);
@@ -742,6 +745,18 @@ document.querySelectorAll('.nav-item').forEach(btn => {
         render();
     });
 });
+
+// Fix for listener leak: Global delegation for delete buttons
+const mainContent = document.getElementById('main-content');
+if (mainContent) {
+    mainContent.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete-session');
+        if (deleteBtn) {
+            const sessionId = deleteBtn.getAttribute('data-session-id');
+            if (sessionId) window.del(sessionId);
+        }
+    });
+}
 
 // === INITIALIZATION ===
 // Initialize all mission-critical systems
