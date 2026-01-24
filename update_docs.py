@@ -12,7 +12,7 @@ def main():
     # 1. Update Version Header
     # **Version:** 3.9.8 (Palette Update)
     version_pattern = r'(\*\*Version:\*\* )(\d+\.\d+\.\d+)'
-    new_version = '3.9.9'
+    new_version = '3.9.10'
 
     if re.search(version_pattern, readme):
         print(f"Updating version header to {new_version}")
@@ -31,7 +31,8 @@ def main():
     files_to_sync = [
         'js/constants.js',
         'sw.js',
-        'js/security.js'
+        'js/security.js',
+        'js/app.js'
     ]
 
     for filepath in files_to_sync:
