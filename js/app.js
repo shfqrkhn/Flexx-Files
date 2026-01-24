@@ -766,7 +766,7 @@ if (mainContent) {
 
     // 1. Initialize observability first (for logging other initializations)
     Observability.init();
-    Logger.info('🚀 Flexx Files v3.9 - Mission-Critical Mode');
+    Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
     Security.init();
@@ -849,7 +849,7 @@ if (mainContent) {
 
     // 8. Track app startup
     Analytics.track('app_start', {
-        version: '3.9',
+        version: APP_VERSION,
         platform: navigator.platform,
         online: navigator.onLine
     });

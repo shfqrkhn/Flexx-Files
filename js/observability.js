@@ -4,7 +4,7 @@
  * All data is stored locally - zero external tracking
  */
 
-import { STORAGE_PREFIX } from './constants.js';
+import { STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
 // === LOG LEVELS ===
 const LOG_LEVELS = {
@@ -157,7 +157,7 @@ const Logger = {
             errors: this.getErrors(),
             metrics: Metrics.getMeasures(),
             exportDate: new Date().toISOString(),
-            appVersion: '3.9'
+            appVersion: APP_VERSION
         };
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -317,7 +317,7 @@ export const Observability = {
         ErrorTracker.init();
         PerformanceMonitor.init();
         BatteryMonitor.init();
-        Logger.info('Observability system initialized', { version: '3.9' });
+        Logger.info('Observability system initialized', { version: APP_VERSION });
     },
 
     Logger,
