@@ -8,6 +8,15 @@ import { Logger } from './observability.js';
 import { RECOVERY_STATES, STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
 // === INPUT SANITIZATION ===
+const SANITIZE_MAP = {
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;'
+};
+const SANITIZE_REGEX = /[<>"'\/]/g;
+
 export const Sanitizer = {
     /**
      * Sanitize HTML to prevent XSS attacks
@@ -25,13 +34,7 @@ export const Sanitizer = {
      */
     sanitizeString(str) {
         if (typeof str !== 'string') return '';
-
-        return str
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#x27;')
-            .replace(/\//g, '&#x2F;');
+        return str.replace(SANITIZE_REGEX, match => SANITIZE_MAP[match]);
     },
 
     /**
