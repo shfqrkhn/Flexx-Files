@@ -74,3 +74,19 @@
 - `tests/import_error_disclosure.test.js` - Added test suite verifying generic errors shown to users
 
 **Verification:** Import error disclosure test passes (3/3); technical details logged securely, generic message shown to users.
+
+## 2026-01-23 - [🛡️ Sentinel] - Unvalidated Optional Session Fields
+
+**Insight:** While session structure was validated, optional fields in exercises (`setsCompleted`, `completed`, `usingAlternative`, `altName`, `skipped`) and warmup (`altUsed`) were not type-checked. This allowed malformed data (e.g. string for `setsCompleted`) to persist, potentially leading to data corruption or unexpected behavior.
+
+**Protocol:**
+- ALWAYS validate optional fields with strict type checks if they are present.
+- Use explicit type guards (`typeof x === 'number'`) for all data properties.
+- Ensure regression tests cover invalid optional fields.
+
+**Files Modified:**
+- `js/security.js:168-174, 221-238` - Added strict type checks for optional fields in Validator
+- `tests/validation_suite.test.js` - Fixed regression test execution environment
+- `tests/security_validation_fix.test.js` - Added test cases for invalid optional fields
+
+**Verification:** Regression tests pass (10/10); new security validation tests pass (15/15); bad data confirmed rejected.
