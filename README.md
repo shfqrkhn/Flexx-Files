@@ -1,9 +1,9 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.8 (Palette Update)
-**Codename:** Zenith
-**Architecture:** Offline-First PWA (Vanilla JS)
-**Protocol:** Complete Strength (Hygiene Enforced)
+**Version:** 3.9.8 (Palette Update)    
+**Codename:** Zenith    
+**Architecture:** Offline-First PWA (Vanilla JS)   
+**Protocol:** Complete Strength (Hygiene Enforced)    
 
 ---
 
