@@ -26,7 +26,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.10';
+export const APP_VERSION = '3.9.11';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -60,7 +60,6 @@ export const DUMMY_DATA_DAYS_BACK = 30; // How far back to generate dummy data
 export const DEBUG_REST_UNLOCK_HOURS = 73; // Backdating time for rest unlock (3 days + 1 hour)
 
 // === UI TIMING ===
-export const CHART_RENDER_DELAY_MS = 100; // Delay before rendering chart to ensure DOM is ready
 export const TIMER_TICK_INTERVAL_MS = 1000; // Timer update frequency
 
 // === RECOVERY STATES ===

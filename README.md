@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.10 (Sentinel Update)
+**Version:** 3.9.11 (Sentinel Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.10';
+export const APP_VERSION = '3.9.11';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -878,7 +878,6 @@ export const DUMMY_DATA_DAYS_BACK = 30; // How far back to generate dummy data
 export const DEBUG_REST_UNLOCK_HOURS = 73; // Backdating time for rest unlock (3 days + 1 hour)
 
 // === UI TIMING ===
-export const CHART_RENDER_DELAY_MS = 100; // Delay before rendering chart to ensure DOM is ready
 export const TIMER_TICK_INTERVAL_MS = 1000; // Timer update frequency
 
 // === RECOVERY STATES ===
@@ -1855,7 +1854,7 @@ function renderHistory(c) {
 
 function renderProgress(c) {
     c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" aria-label="Select exercise for progress chart" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
-    setTimeout(()=>window.drawChart('hinge'),100);
+    window.drawChart('hinge');
 }
 
 function renderSettings(c) {
@@ -4110,7 +4109,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.10';
+const CACHE_NAME = 'flexx-v3.9.11';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
