@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.9 (Palette Update)
+**Version:** 3.9.10 (Palette Update)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.9';
+export const APP_VERSION = '3.9.10';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -2229,16 +2229,22 @@ window.imp = (el) => {
 };
 
 // === SVG CHARTING ===
-window.drawChart = (id) => {
-    try {
-        const div = document.getElementById('chart-area');
-        if (!div) {
-            console.error('Chart area element not found');
-            return;
+const ChartCache = {
+    // WeakMap<sessionsArray, Map<exerciseId, dataArray>>
+    _cache: new WeakMap(),
+
+    getData(exerciseId) {
+        const sessions = Storage.getSessions();
+        if (!this._cache.has(sessions)) {
+            this._cache.set(sessions, new Map());
+        }
+        const sessionCache = this._cache.get(sessions);
+
+        if (sessionCache.has(exerciseId)) {
+            return sessionCache.get(exerciseId);
         }
 
         // Optimization: Single pass O(N) instead of filter/map chaining O(3N)
-        const sessions = Storage.getSessions();
         const data = [];
         let minVal = Infinity;
         let maxVal = -Infinity;
@@ -2247,7 +2253,7 @@ window.drawChart = (id) => {
             const exercises = sessions[i].exercises;
             for (let j = 0; j < exercises.length; j++) {
                 const ex = exercises[j];
-                if (ex.id === id) {
+                if (ex.id === exerciseId) {
                     if (!ex.usingAlternative) {
                         const v = ex.weight;
                         data.push({d: new Date(sessions[i].date), v});
@@ -2258,6 +2264,22 @@ window.drawChart = (id) => {
                 }
             }
         }
+
+        const result = { data, minVal, maxVal };
+        sessionCache.set(exerciseId, result);
+        return result;
+    }
+};
+
+window.drawChart = (id) => {
+    try {
+        const div = document.getElementById('chart-area');
+        if (!div) {
+            console.error('Chart area element not found');
+            return;
+        }
+
+        const { data, minVal, maxVal } = ChartCache.getData(id);
 
         if (data.length < 2) {
             div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
@@ -2329,7 +2351,7 @@ if (mainContent) {
     Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
-    Security.init();
+    Security.init(Logger);
     Logger.info('Security system active');
 
     // 3. Initialize accessibility system
@@ -3223,10 +3245,20 @@ export default Accessibility;
  * Zero external dependencies - all validation is local
  */
 
-import { Logger } from './observability.js';
 import { RECOVERY_STATES, STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
+let Logger = console;
+
 // === INPUT SANITIZATION ===
+const SANITIZE_MAP = {
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;'
+};
+const SANITIZE_REGEX = /[<>"'\/]/g;
+
 export const Sanitizer = {
     /**
      * Sanitize HTML to prevent XSS attacks
@@ -3244,13 +3276,7 @@ export const Sanitizer = {
      */
     sanitizeString(str) {
         if (typeof str !== 'string') return '';
-
-        return str
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#x27;')
-            .replace(/\//g, '&#x2F;');
+        return str.replace(SANITIZE_REGEX, match => SANITIZE_MAP[match]);
     },
 
     /**
@@ -3686,7 +3712,8 @@ export const AuditLog = {
 
 // === INITIALIZE SECURITY SYSTEM ===
 export const Security = {
-    init() {
+    init(logger) {
+        if (logger) Logger = logger;
         // Log initialization
         AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
@@ -4111,7 +4138,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.9';
+const CACHE_NAME = 'flexx-v3.9.10';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
