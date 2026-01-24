@@ -4,9 +4,11 @@ global.window = {
     location: { pathname: '/test' },
     crypto: { subtle: {} }
 };
-global.navigator = {
-    userAgent: 'NodeJS Test'
-};
+Object.defineProperty(global, 'navigator', {
+    value: { userAgent: 'NodeJS Test' },
+    writable: true,
+    configurable: true
+});
 global.localStorage = {
     getItem: () => null,
     setItem: () => {},
