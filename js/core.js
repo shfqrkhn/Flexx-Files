@@ -31,8 +31,9 @@ export const Storage = {
 
             try {
                 // Create snapshot of current data
+                // Optimization: Shallow copy is sufficient as saveSession does not mutate objects in-place
                 const sessions = Storage.getSessions();
-                this.snapshot = JSON.parse(JSON.stringify(sessions));
+                this.snapshot = [...sessions];
                 this.inProgress = true;
                 console.log('Transaction started', { sessionCount: sessions.length });
                 return true;
