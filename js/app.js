@@ -605,17 +605,6 @@ window.startCardio = () => Timer.start(300);
 window.loadMoreHistory = () => {
     State.historyLimit = (State.historyLimit || 20) + 20;
     render();
-    // Restore focus to "Load More" button if it exists
-    setTimeout(() => {
-        const btn = document.getElementById('load-more-btn');
-        if (btn) {
-            btn.focus();
-        } else {
-            // Fallback: Focus main container if button is gone (end of list)
-            const main = document.getElementById('main-content');
-            if (main) main.focus();
-        }
-    }, 0);
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
