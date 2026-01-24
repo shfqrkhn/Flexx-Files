@@ -27,6 +27,15 @@ export const EXERCISES = [
         }
     },
     {
+        id: 'push_incline', name: 'Incline DB Press', category: 'H-PUSH', sets: 3, reps: 10,
+        video: 'https://www.youtube.com/results?search_query=incline+dumbbell+press+form',
+        alternatives: ['Incline Barbell Press', 'Decline Push-up'],
+        altLinks: {
+            'Incline Barbell Press': 'https://www.youtube.com/results?search_query=incline+barbell+bench+press+form',
+            'Decline Push-up': 'https://www.youtube.com/results?search_query=decline+push+up+form'
+        }
+    },
+    {
         id: 'push_vert', name: 'Standing DB OHP', category: 'V-PUSH', sets: 3, reps: 10,
         video: 'https://www.youtube.com/results?search_query=standing+dumbbell+overhead+press+form',
         alternatives: ['Seated DB Press', 'Barbell Overhead Press'],
@@ -42,6 +51,15 @@ export const EXERCISES = [
         altLinks: {
             'Single Arm DB Row (Bench)': 'https://www.youtube.com/results?search_query=single+arm+dumbbell+row+on+bench+form',
             'Barbell Row': 'https://www.youtube.com/results?search_query=barbell+bent+over+row+form'
+        }
+    },
+    {
+        id: 'pull_vert', name: 'Lat Pulldown', category: 'PULL', sets: 3, reps: 12,
+        video: 'https://www.youtube.com/results?search_query=lat+pulldown+form',
+        alternatives: ['Pull Up', 'Band Pulldown'],
+        altLinks: {
+            'Pull Up': 'https://www.youtube.com/results?search_query=pull+up+form',
+            'Band Pulldown': 'https://www.youtube.com/results?search_query=resistance+band+lat+pulldown'
         }
     },
     {

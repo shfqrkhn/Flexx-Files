@@ -5,6 +5,7 @@
  */
 
 import { STORAGE_PREFIX, APP_VERSION } from './constants.js';
+import { Sanitizer } from './security.js';
 
 // === LOG LEVELS ===
 const LOG_LEVELS = {
@@ -113,8 +114,18 @@ const Logger = {
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
             const safeEntry = JSON.parse(JSON.stringify(logEntry));
-            if (safeEntry.context && safeEntry.context.stack) {
-                delete safeEntry.context.stack;
+
+            // Sanitize string properties to prevent stored XSS
+            safeEntry.message = Sanitizer.sanitizeString(safeEntry.message);
+            if (safeEntry.context) {
+                if (safeEntry.context.stack) {
+                    delete safeEntry.context.stack;
+                }
+                for (const key in safeEntry.context) {
+                    if (typeof safeEntry.context[key] === 'string') {
+                        safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);
+                    }
+                }
             }
 
             const errors = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');

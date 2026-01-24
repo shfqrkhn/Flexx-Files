@@ -245,15 +245,21 @@ function renderWarmup(c) {
 
 function renderLifting(c) {
     const sessions = Storage.getSessions();
+    const isDeload = Calculator.isDeloadWeek(sessions);
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                 <h1>Lifting</h1>
-                <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
+                <div class="flex-row" style="gap:0.5rem">
+                    ${isDeload ? `<span class="text-xs" style="border:1px solid var(--accent); color:var(--accent); padding:0.25rem 0.5rem; border-radius:0.75rem">DELOAD WEEK</span>` : ''}
+                    <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
+                </div>
             </div>
             <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
             ${EXERCISES.map(ex => {
-                const w = Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
+                // Check state first for persistence
+                const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
                 return `
@@ -484,6 +490,10 @@ window.modW = (id, d) => {
         const newValue = Math.max(0, currentValue + d);
         el.value = newValue;
 
+        // Persistence: Update active session state
+        const activeEx = State.activeSession?.exercises?.find(e => e.id === id);
+        if (activeEx) activeEx.weight = newValue;
+
         // Palette: Update plate math display in real-time
         const plateEl = document.getElementById(`pl-${id}`);
         if (plateEl) {
@@ -579,6 +589,18 @@ window.nextPhase = (p) => {
                     altUsed: altElement ? altElement.value : ''
                 };
             });
+
+            // Initialize exercises with recommended weights for persistence
+            const sessions = Storage.getSessions();
+            State.activeSession.exercises = EXERCISES.map(ex => ({
+                id: ex.id,
+                name: ex.name,
+                weight: Calculator.getRecommendedWeight(ex.id, State.recovery, sessions),
+                setsCompleted: 0,
+                completed: false,
+                usingAlternative: false,
+                skipped: false
+            }));
         }
 
         if(p === 'cardio') {

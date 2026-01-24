@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.6 (Sentinel Update)
+**Version:** 3.9.7 (Palette Update)
 **Codename:** Zenith
 **Architecture:** Offline-First PWA (Vanilla JS)
 **Protocol:** Complete Strength (Hygiene Enforced)
@@ -826,7 +826,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.6';
+export const APP_VERSION = '3.9.7';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -889,7 +889,6 @@ export const ERROR_MESSAGES = {
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };
-
 ```
 
 ## js/core.js
@@ -912,6 +911,7 @@ export const Storage = {
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
+    _isCorrupted: false,
 
     /**
      * ATOMIC TRANSACTION SYSTEM
@@ -1095,12 +1095,26 @@ export const Storage = {
             return this._sessionCache;
         } catch (e) {
             console.error('Failed to load sessions:', e);
-            // Return empty array if corrupted, don't lose everything
+            // Sentinel: Flag corruption to prevent overwriting raw data later
+            this._isCorrupted = true;
+            // Return empty array so UI can still render partial state (e.g. empty history)
+            // but saving will be blocked.
             return [];
         }
     },
 
     saveSession(session) {
+        // Ensure data is loaded to detect corruption state
+        this.getSessions();
+
+        // Sentinel: Prevent data loss if storage is corrupted
+        if (this._isCorrupted) {
+            const msg = 'Storage is corrupted. Cannot save to prevent data loss. Please export data immediately.';
+            console.error(msg);
+            alert(msg);
+            throw new Error(msg);
+        }
+
         // Start atomic transaction
         if (!this.Transaction.begin()) {
             console.error('Could not start transaction for saveSession');
@@ -1324,11 +1338,15 @@ export const Calculator = {
         return parseFloat((Math.round(w / CONST.STEPPER_INCREMENT_LBS) * CONST.STEPPER_INCREMENT_LBS).toFixed(1));
     },
 
-    getBaseRecommendation(exerciseId, sessions) {
+    isDeloadWeek(sessions) {
+        if (!sessions) sessions = Storage.getSessions();
         const week = Math.ceil((sessions.length + 1) / CONST.SESSIONS_PER_WEEK);
+        return (week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0);
+    },
 
+    getBaseRecommendation(exerciseId, sessions) {
         // Deload every N weeks
-        if (week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0) {
+        if (this.isDeloadWeek(sessions)) {
             const last = this.getLastCompletedExercise(exerciseId, sessions);
             return last ? last.weight * CONST.DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
         }
@@ -1580,6 +1598,7 @@ function render() {
             case 'history': renderHistory(main); break;
             case 'progress': renderProgress(main); break;
             case 'settings': renderSettings(main); break;
+            case 'protocol': renderProtocol(main); break;
             default:
                 console.warn(`Unknown view: ${State.view}`);
                 renderToday(main);
@@ -1634,11 +1653,11 @@ function renderRecovery(c) {
     c.innerHTML = `
         <div class="container">
             <h1>How do you feel?</h1>
-            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">Your recovery state adjusts recommended weights</p>
+            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">Assess yourself immediately before training.</p>
             ${check.isFirst ? `
                 <div class="card" style="border-color:var(--accent)">
-                    <h3>🎯 First Session</h3>
-                    <p class="text-xs">Start conservative. Pick weights you can lift for 12 reps with good form. The app will auto-progress from here.</p>
+                    <h3>🎯 Calibration Day</h3>
+                    <p class="text-xs">Find a weight where you can complete 12 reps with good form but have 2 reps left in the tank (RPE 8). Stop sets at 12.</p>
                 </div>` : ''}
             ${check.warning ? `
                 <div class="card" style="border-color:var(--warning)">
@@ -1647,22 +1666,27 @@ function renderRecovery(c) {
                 </div>` : ''}
             <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select green recovery status">
                 <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
-                <p class="text-xs">Well rested, feeling strong. Use full recommended weights with normal progression (+5 lbs on success).</p>
+                <p class="text-xs">7+ hours sleep, no pain. Train at scheduled weights.</p>
             </button>
             <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select yellow recovery status">
                 <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
-                <p class="text-xs">Tired, sore, or stressed. Use 90% of recommended weights. Still effective training, just lower intensity.</p>
+                <p class="text-xs">5–6 hours sleep, general stiffness or fatigue. Weights reduced by 10%.</p>
             </button>
             <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select red recovery status">
                 <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
-                <p class="text-xs">Sick, injured, or exhausted. Skip strength training. Take a walk instead. Come back when you feel better.</p>
+                <p class="text-xs">< 5 hours sleep, acute pain, or illness. Do Not Lift. Go for a walk only.</p>
             </button>
         </div>`;
 }
 
 function renderWarmup(c) {
     c.innerHTML = `
-        <div class="container"><h1>Warmup</h1><div class="card">
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
         ${WARMUP.map(w => `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
@@ -1684,14 +1708,21 @@ function renderWarmup(c) {
 
 function renderLifting(c) {
     const sessions = Storage.getSessions();
+    const isDeload = Calculator.isDeloadWeek(sessions);
     c.innerHTML = `
         <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                 <h1>Lifting</h1>
-                <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
+                <div class="flex-row" style="gap:0.5rem">
+                    ${isDeload ? `<span class="text-xs" style="border:1px solid var(--accent); color:var(--accent); padding:0.25rem 0.5rem; border-radius:0.75rem">DELOAD WEEK</span>` : ''}
+                    <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
+                </div>
             </div>
+            <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
             ${EXERCISES.map(ex => {
-                const w = Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
+                // Check state first for persistence
+                const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
                 return `
@@ -1813,6 +1844,9 @@ function renderSettings(c) {
         <div class="container">
             <h1>Settings</h1>
             <div class="card">
+                <button class="btn btn-secondary" onclick="window.viewProtocol()" aria-label="View Complete Strength Protocol guide">📖 Protocol Guide</button>
+            </div>
+            <div class="card">
                 <button class="btn btn-secondary" id="backup-btn">Backup Data</button>
                 <div style="position:relative; margin-top:0.5rem">
                     <button class="btn btn-secondary" tabindex="-1" aria-hidden="true">Restore Data</button>
@@ -1832,6 +1866,48 @@ function renderSettings(c) {
     if (backupBtn) {
         backupBtn.addEventListener('click', () => Storage.exportData());
     }
+}
+
+function renderProtocol(c) {
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="margin-bottom:1rem">
+                <button class="btn btn-secondary" style="width:auto; padding:0.5rem 1rem" onclick="State.view='settings';render()" aria-label="Back to settings">← Back</button>
+            </div>
+            <h1>The Protocol</h1>
+            <div class="card">
+                <h3 style="color:var(--accent)">Hygiene Protocol</h3>
+                <p class="text-xs" style="margin-bottom:1rem">All movements are designed to be performed standing, seated, or on a bench to ensure hygiene and minimize floor contact.</p>
+
+                <h3 style="color:var(--accent)">Overview</h3>
+                <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
+                    <li><strong>Schedule:</strong> 3 days/week (e.g., Mon/Wed/Fri)</li>
+                    <li><strong>Time:</strong> 65 Minutes hard cap</li>
+                    <li><strong>Spacing:</strong> 48–72 hours rest required</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3 style="color:var(--warning)">Fault Tolerance</h3>
+                <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:0.5rem; font-size:0.8rem; margin-top:0.5rem">
+                    <div>Missed 1</div><div>Slide schedule (maintain 48h gap)</div>
+                    <div>Missed 2+</div><div>Reduce weights 10%</div>
+                    <div>Sick (Fever)</div><div>FULL REST. Resume 24h after fever. Reduce 20%.</div>
+                    <div>Injury</div><div>Skip aggravating exercise. Do others.</div>
+                </div>
+            </div>
+
+            <div class="card" style="border-color:var(--error)">
+                <h3>🚨 Gym Closed?</h3>
+                <p class="text-xs" style="margin-bottom:0.5rem">Emergency Bodyweight Circuit. 4 Rounds, AMRAP, 90s rest between rounds.</p>
+                <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
+                    <li><strong>Push:</strong> Incline Push-ups (Hands on furniture)</li>
+                    <li><strong>Legs:</strong> Bodyweight Squats (Tempo: 3s down)</li>
+                    <li><strong>Pull:</strong> Inverted Rows (Table) OR Door Rows</li>
+                    <li><strong>Core:</strong> Hardstyle Plank</li>
+                </ul>
+            </div>
+        </div>`;
 }
 
 // === HANDLERS ===
@@ -1876,6 +1952,10 @@ window.modW = (id, d) => {
         const currentValue = parseFloat(el.value) || 0;
         const newValue = Math.max(0, currentValue + d);
         el.value = newValue;
+
+        // Persistence: Update active session state
+        const activeEx = State.activeSession?.exercises?.find(e => e.id === id);
+        if (activeEx) activeEx.weight = newValue;
 
         // Palette: Update plate math display in real-time
         const plateEl = document.getElementById(`pl-${id}`);
@@ -1972,6 +2052,18 @@ window.nextPhase = (p) => {
                     altUsed: altElement ? altElement.value : ''
                 };
             });
+
+            // Initialize exercises with recommended weights for persistence
+            const sessions = Storage.getSessions();
+            State.activeSession.exercises = EXERCISES.map(ex => ({
+                id: ex.id,
+                name: ex.name,
+                weight: Calculator.getRecommendedWeight(ex.id, State.recovery, sessions),
+                setsCompleted: 0,
+                completed: false,
+                usingAlternative: false,
+                skipped: false
+            }));
         }
 
         if(p === 'cardio') {
@@ -2089,6 +2181,10 @@ window.loadMoreHistory = () => {
         const summaries = document.querySelectorAll('summary');
         if (summaries.length > 0) summaries[summaries.length - 1].focus();
     }
+};
+window.viewProtocol = () => {
+    State.view = 'protocol';
+    render();
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
@@ -3988,7 +4084,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.6';
+const CACHE_NAME = 'flexx-v3.9.7';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',

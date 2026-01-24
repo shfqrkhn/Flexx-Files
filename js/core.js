@@ -440,11 +440,15 @@ export const Calculator = {
         return parseFloat((Math.round(w / CONST.STEPPER_INCREMENT_LBS) * CONST.STEPPER_INCREMENT_LBS).toFixed(1));
     },
 
-    getBaseRecommendation(exerciseId, sessions) {
+    isDeloadWeek(sessions) {
+        if (!sessions) sessions = Storage.getSessions();
         const week = Math.ceil((sessions.length + 1) / CONST.SESSIONS_PER_WEEK);
+        return (week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0);
+    },
 
+    getBaseRecommendation(exerciseId, sessions) {
         // Deload every N weeks
-        if (week > 0 && week % CONST.DELOAD_WEEK_INTERVAL === 0) {
+        if (this.isDeloadWeek(sessions)) {
             const last = this.getLastCompletedExercise(exerciseId, sessions);
             return last ? last.weight * CONST.DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
         }
