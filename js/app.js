@@ -869,7 +869,7 @@ if (mainContent) {
     Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
-    Security.init();
+    Security.init(Logger);
     Logger.info('Security system active');
 
     // 3. Initialize accessibility system

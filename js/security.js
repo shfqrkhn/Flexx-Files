@@ -4,8 +4,9 @@
  * Zero external dependencies - all validation is local
  */
 
-import { Logger } from './observability.js';
 import { RECOVERY_STATES, STORAGE_PREFIX, APP_VERSION } from './constants.js';
+
+let Logger = console;
 
 // === INPUT SANITIZATION ===
 const SANITIZE_MAP = {
@@ -470,7 +471,8 @@ export const AuditLog = {
 
 // === INITIALIZE SECURITY SYSTEM ===
 export const Security = {
-    init() {
+    init(logger) {
+        if (logger) Logger = logger;
         // Log initialization
         AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
