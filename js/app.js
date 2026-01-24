@@ -135,6 +135,7 @@ function render() {
             case 'history': renderHistory(main); break;
             case 'progress': renderProgress(main); break;
             case 'settings': renderSettings(main); break;
+            case 'protocol': renderProtocol(main); break;
             default:
                 console.warn(`Unknown view: ${State.view}`);
                 renderToday(main);
@@ -189,11 +190,11 @@ function renderRecovery(c) {
     c.innerHTML = `
         <div class="container">
             <h1>How do you feel?</h1>
-            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">Your recovery state adjusts recommended weights</p>
+            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">Assess yourself immediately before training.</p>
             ${check.isFirst ? `
                 <div class="card" style="border-color:var(--accent)">
-                    <h3>🎯 First Session</h3>
-                    <p class="text-xs">Start conservative. Pick weights you can lift for 12 reps with good form. The app will auto-progress from here.</p>
+                    <h3>🎯 Calibration Day</h3>
+                    <p class="text-xs">Find a weight where you can complete 12 reps with good form but have 2 reps left in the tank (RPE 8). Stop sets at 12.</p>
                 </div>` : ''}
             ${check.warning ? `
                 <div class="card" style="border-color:var(--warning)">
@@ -202,22 +203,27 @@ function renderRecovery(c) {
                 </div>` : ''}
             <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select green recovery status">
                 <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
-                <p class="text-xs">Well rested, feeling strong. Use full recommended weights with normal progression (+5 lbs on success).</p>
+                <p class="text-xs">7+ hours sleep, no pain. Train at scheduled weights.</p>
             </button>
             <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select yellow recovery status">
                 <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
-                <p class="text-xs">Tired, sore, or stressed. Use 90% of recommended weights. Still effective training, just lower intensity.</p>
+                <p class="text-xs">5–6 hours sleep, general stiffness or fatigue. Weights reduced by 10%.</p>
             </button>
             <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select red recovery status">
                 <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
-                <p class="text-xs">Sick, injured, or exhausted. Skip strength training. Take a walk instead. Come back when you feel better.</p>
+                <p class="text-xs">< 5 hours sleep, acute pain, or illness. Do Not Lift. Go for a walk only.</p>
             </button>
         </div>`;
 }
 
 function renderWarmup(c) {
     c.innerHTML = `
-        <div class="container"><h1>Warmup</h1><div class="card">
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
         ${WARMUP.map(w => `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
@@ -241,10 +247,11 @@ function renderLifting(c) {
     const sessions = Storage.getSessions();
     c.innerHTML = `
         <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                 <h1>Lifting</h1>
                 <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
             </div>
+            <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
             ${EXERCISES.map(ex => {
                 const w = Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
@@ -368,6 +375,9 @@ function renderSettings(c) {
         <div class="container">
             <h1>Settings</h1>
             <div class="card">
+                <button class="btn btn-secondary" onclick="window.viewProtocol()" aria-label="View Complete Strength Protocol guide">📖 Protocol Guide</button>
+            </div>
+            <div class="card">
                 <button class="btn btn-secondary" id="backup-btn">Backup Data</button>
                 <div style="position:relative; margin-top:0.5rem">
                     <button class="btn btn-secondary" tabindex="-1" aria-hidden="true">Restore Data</button>
@@ -387,6 +397,48 @@ function renderSettings(c) {
     if (backupBtn) {
         backupBtn.addEventListener('click', () => Storage.exportData());
     }
+}
+
+function renderProtocol(c) {
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="margin-bottom:1rem">
+                <button class="btn btn-secondary" style="width:auto; padding:0.5rem 1rem" onclick="State.view='settings';render()" aria-label="Back to settings">← Back</button>
+            </div>
+            <h1>The Protocol</h1>
+            <div class="card">
+                <h3 style="color:var(--accent)">The "Filthy Floor" Standard</h3>
+                <p class="text-xs" style="margin-bottom:1rem">Strict Zero Floor Contact. All movements are Standing, Bench, or Wall variants for hygiene and focus.</p>
+
+                <h3 style="color:var(--accent)">Overview</h3>
+                <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
+                    <li><strong>Schedule:</strong> 3 days/week (e.g., Mon/Wed/Fri)</li>
+                    <li><strong>Time:</strong> 65 Minutes hard cap</li>
+                    <li><strong>Spacing:</strong> 48–72 hours rest required</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h3 style="color:var(--warning)">Fault Tolerance</h3>
+                <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:0.5rem; font-size:0.8rem; margin-top:0.5rem">
+                    <div>Missed 1</div><div>Slide schedule (maintain 48h gap)</div>
+                    <div>Missed 2+</div><div>Reduce weights 10%</div>
+                    <div>Sick (Fever)</div><div>FULL REST. Resume 24h after fever. Reduce 20%.</div>
+                    <div>Injury</div><div>Skip aggravating exercise. Do others.</div>
+                </div>
+            </div>
+
+            <div class="card" style="border-color:var(--error)">
+                <h3>🚨 Gym Closed?</h3>
+                <p class="text-xs" style="margin-bottom:0.5rem">Emergency Bodyweight Circuit. 4 Rounds, AMRAP, 90s rest between rounds.</p>
+                <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
+                    <li><strong>Push:</strong> Incline Push-ups (Hands on furniture)</li>
+                    <li><strong>Legs:</strong> Bodyweight Squats (Tempo: 3s down)</li>
+                    <li><strong>Pull:</strong> Inverted Rows (Table) OR Door Rows</li>
+                    <li><strong>Core:</strong> Hardstyle Plank</li>
+                </ul>
+            </div>
+        </div>`;
 }
 
 // === HANDLERS ===
@@ -644,6 +696,10 @@ window.loadMoreHistory = () => {
         const summaries = document.querySelectorAll('summary');
         if (summaries.length > 0) summaries[summaries.length - 1].focus();
     }
+};
+window.viewProtocol = () => {
+    State.view = 'protocol';
+    render();
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
