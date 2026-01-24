@@ -46,7 +46,8 @@ global.document = {
         setAttribute: () => {},
         classList: { add: () => {}, remove: () => {} },
         addEventListener: () => {},
-        click: () => {}
+        click: () => {},
+        focus: () => {}
     }),
     querySelector: () => null,
     querySelectorAll: () => [],

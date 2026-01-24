@@ -627,6 +627,15 @@ window.startCardio = () => Timer.start(300);
 window.loadMoreHistory = () => {
     State.historyLimit = (State.historyLimit || 20) + 20;
     render();
+
+    // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
+    const btn = document.getElementById('load-more-btn');
+    if (btn) {
+        btn.focus();
+    } else {
+        const summaries = document.querySelectorAll('summary');
+        if (summaries.length > 0) summaries[summaries.length - 1].focus();
+    }
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
