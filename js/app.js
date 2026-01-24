@@ -678,11 +678,19 @@ window.drawChart = (id) => {
         const W = div.clientWidth || 300;
         const H = Math.max(200, Math.min(300, W * 0.6));
         const P = 20;
-        const X = i => P + (i/(data.length-1)) * (W-P*2);
-        const Y = v => H - (P + ((v-min)/(max-min)) * (H-P*2));
+
+        // Sentinel: Sanitize coordinates to prevent SVG injection
+        const safeNum = (n) => {
+            const num = Number(n);
+            return (isFinite(num) && !isNaN(num)) ? num.toFixed(2) : '0';
+        };
+
+        const X = i => safeNum(P + (i/(data.length-1)) * (W-P*2));
+        const Y = v => safeNum(H - (P + ((v-min)/(max-min)) * (H-P*2)));
+
         let path = `M ${X(0)} ${Y(data[0].v)}`;
         data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
-        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}">
+        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight progression chart for ${EXERCISES.find(e => e.id === id)?.name || 'exercise'}">
             <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
             ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
         </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
