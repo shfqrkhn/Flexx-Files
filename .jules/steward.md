@@ -173,3 +173,22 @@ This created a CRITICAL XSS vector where a crafted session ID could execute arbi
 - `tests/integrity.test.js` - Added regression test verifying rollback of nested mutations.
 
 **Verification:** `tests/integrity.test.js` confirms rollback now reverts nested mutations; existing tests pass.
+
+---
+
+## 2026-01-24 - [🛡️ Sentinel] - Insufficient NaN Validation in Security Validator
+
+**Insight:** The `Validator.validateExercise` function relied on `typeof value === 'number'` and range checks (`value < 0`) to validate numeric inputs like `weight` and `setsCompleted`. In JavaScript, `typeof NaN` is `'number'`, and `NaN` fails all comparison checks (e.g., `NaN < 0` is `false`). This allowed `NaN` values to bypass validation and corrupt data integrity, potentially leading to calculation errors or application instability.
+
+**Protocol:**
+- ALWAYS explicitly check for `NaN` when validating numeric inputs using `Number.isNaN()` or `isNaN()`.
+- NEVER rely solely on `typeof` or range checks for numeric validation.
+- Pattern: `if (typeof val !== 'number' || isNaN(val) || val < min || val > max) return error;`
+- Integrity First: Ensure strict type correctness at all data ingress points (import, input).
+
+**Files Modified:**
+- `js/security.js:225, 230` - Added `isNaN()` checks to `Validator.validateExercise`.
+- `tests/app_security.test.js` - Fixed test harness (navigator mock) to enable proper verification.
+- `tests/security_validation_fix.test.js` - Added regression tests for `NaN` inputs.
+
+**Verification:** Regression tests in `tests/security_validation_fix.test.js` pass (19/19); `NaN` inputs now correctly rejected.
