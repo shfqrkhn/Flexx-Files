@@ -1,5 +1,22 @@
 # The Black Box Journal
 
+## 2026-01-23 - [⚡ Bolt] - Uncleaned Interval Causing Resource Leak
+
+**Insight:** The draft auto-save interval (line 790) was created during app initialization but never cleaned up, causing progressive memory/resource leaks. The interval continued running indefinitely even after page navigation, errors, or tab backgrounding, wasting CPU cycles every 30 seconds checking `State.activeSession`.
+
+**Protocol:**
+- ALWAYS store interval/timeout IDs when created in initialization code
+- ALWAYS register cleanup handlers using `beforeunload` event for page-level intervals
+- Perform final critical operations (like draft save) in cleanup handler to prevent data loss
+- Pattern: `const intervalId = setInterval(...); window.addEventListener('beforeunload', () => clearInterval(intervalId));`
+
+**Files Modified:**
+- `js/app.js:790-805` - Stored interval ID and added beforeunload cleanup handler
+
+**Verification:** Syntax check passes; regression tests pass (10/10); resource properly cleaned on page unload.
+
+---
+
 ## 2026-01-23 - [🛡️ Sentinel] - Insufficient URL Protocol Validation
 
 **Insight:** The `Sanitizer.sanitizeURL()` function relied solely on `new URL()` parsing followed by protocol allowlist checking. This created bypass vulnerabilities through encoding attacks (e.g., `java\tscript:`, `java\nscript:`) and dangerous data URIs that could execute code when users clicked video links. The function protects 15+ call sites throughout the app—a single bypass point with wide blast radius.
