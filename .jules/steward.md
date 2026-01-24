@@ -42,14 +42,18 @@
 
 **Insight:** Error messages were exposing technical implementation details (`${e.message}`) directly to users via `alert()` in critical data handling paths (migration and import functions). This leaks internal system information that could aid attackers in reconnaissance.
 
+**Update (Cycle #3):** Discovered line 351 was exposing validation error details: `alert(\`Invalid file:\\n\${validation.errors.join('\\n')}\`)`. This leaked session data structure requirements, field validation rules, and internal error handling logic—critical reconnaissance information.
+
 **Protocol:**
 - NEVER expose raw error messages from exceptions in user-facing alerts
 - ALWAYS use pre-sanitized ERROR_MESSAGES constants for user communication
-- ALWAYS log technical details via secure Logger system for debugging
+- ALWAYS log technical details via console.error for debugging (secure logging)
 - Sensitive paths: data import/export, migrations, authentication flows
+- Pattern: Generic user message + detailed console.error logging
 
 **Files Modified:**
 - `js/core.js:161` - Migration error handling
-- `js/core.js:356` - Import error handling
+- `js/core.js:351-353` - Import validation error handling (Cycle #3 fix)
+- `tests/import_error_disclosure.test.js` - Added test suite verifying generic errors shown to users
 
-**Verification:** Security tests pass; no sensitive data exposure in user alerts.
+**Verification:** Import error disclosure test passes (3/3); technical details logged securely, generic message shown to users.

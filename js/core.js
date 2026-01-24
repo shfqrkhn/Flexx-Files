@@ -348,7 +348,9 @@ export const Storage = {
             // Use Security Validator
             const validation = SecurityValidator.validateImportData(data);
             if (!validation.valid) {
-                alert(`Invalid file:\n${validation.errors.join('\n')}`);
+                // SECURITY: Never expose validation details to user
+                console.error('Import validation failed', { errors: validation.errors });
+                alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
                 return;
             }
 
