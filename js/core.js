@@ -13,6 +13,7 @@ export const Storage = {
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
+    _isCorrupted: false,
 
     /**
      * ATOMIC TRANSACTION SYSTEM
@@ -196,12 +197,26 @@ export const Storage = {
             return this._sessionCache;
         } catch (e) {
             console.error('Failed to load sessions:', e);
-            // Return empty array if corrupted, don't lose everything
+            // Sentinel: Flag corruption to prevent overwriting raw data later
+            this._isCorrupted = true;
+            // Return empty array so UI can still render partial state (e.g. empty history)
+            // but saving will be blocked.
             return [];
         }
     },
 
     saveSession(session) {
+        // Ensure data is loaded to detect corruption state
+        this.getSessions();
+
+        // Sentinel: Prevent data loss if storage is corrupted
+        if (this._isCorrupted) {
+            const msg = 'Storage is corrupted. Cannot save to prevent data loss. Please export data immediately.';
+            console.error(msg);
+            alert(msg);
+            throw new Error(msg);
+        }
+
         // Start atomic transaction
         if (!this.Transaction.begin()) {
             console.error('Could not start transaction for saveSession');
