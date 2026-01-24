@@ -108,8 +108,15 @@ const Logger = {
 
     _persistError(logEntry) {
         try {
+            // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
+            // Clone entry to avoid modifying the in-memory log
+            const safeEntry = JSON.parse(JSON.stringify(logEntry));
+            if (safeEntry.context && safeEntry.context.stack) {
+                delete safeEntry.context.stack;
+            }
+
             const errors = JSON.parse(localStorage.getItem('flexx_errors') || '[]');
-            errors.push(logEntry);
+            errors.push(safeEntry);
             // Keep only last 50 errors
             if (errors.length > 50) {
                 errors.shift();
