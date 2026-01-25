@@ -390,43 +390,6 @@ export const CSP = {
     }
 };
 
-// === RATE LIMITING ===
-export const RateLimiter = {
-    attempts: new Map(),
-
-    /**
-     * Check if action is rate limited
-     * @param {string} action - Action identifier
-     * @param {number} maxAttempts - Maximum attempts allowed
-     * @param {number} windowMs - Time window in milliseconds
-     */
-    check(action, maxAttempts = 5, windowMs = 60000) {
-        const now = Date.now();
-        const history = this.attempts.get(action) || [];
-
-        // Filter attempts within time window
-        const recentAttempts = history.filter(time => now - time < windowMs);
-
-        if (recentAttempts.length >= maxAttempts) {
-            Logger.warn('Rate limit exceeded', { action, attempts: recentAttempts.length });
-            return false;
-        }
-
-        // Add current attempt
-        recentAttempts.push(now);
-        this.attempts.set(action, recentAttempts);
-
-        return true;
-    },
-
-    /**
-     * Reset rate limit for action
-     */
-    reset(action) {
-        this.attempts.delete(action);
-    }
-};
-
 // === INTEGRITY CHECKER ===
 export const IntegrityChecker = {
     /**
@@ -561,7 +524,6 @@ export const Security = {
     Sanitizer,
     Validator,
     CSP,
-    RateLimiter,
     IntegrityChecker,
     AuditLog
 };
