@@ -333,6 +333,9 @@ function renderDecompress(c) {
 }
 
 function renderHistory(c) {
+    // Optimization: Create map for O(1) lookup
+    const exerciseMap = new Map(EXERCISES.map(e => [e.id, e]));
+
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
     const limit = State.historyLimit || 20;
@@ -354,7 +357,7 @@ function renderHistory(c) {
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
                 ${x.exercises.map(e => {
                      // Name Display Fix
-                     const rawName = e.altName || e.name || EXERCISES.find(cfg=>cfg.id===e.id)?.name || e.id;
+                     const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
                      const displayName = Sanitizer.sanitizeString(rawName);
                      return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
                 }).join('')}
