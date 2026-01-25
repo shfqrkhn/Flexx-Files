@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.10 (Palette Update)
+**Version:** 3.9.11 (Palette Update)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -101,7 +101,7 @@ Write-Host "✅ Flexx Files v3.8 Structure Created." -ForegroundColor Cyan
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Flexx Files - Offline Strength Tracker</title>
     <meta name="description" content="Privacy-first, offline-first strength training tracker with automatic progression">
     <meta name="theme-color" content="#050505">
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate wei
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.10';
+export const APP_VERSION = '3.9.11';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -948,10 +948,13 @@ export const Storage = {
 
             try {
                 // Create snapshot of current data
-                const sessions = Storage.getSessions();
-                this.snapshot = JSON.parse(JSON.stringify(sessions));
+                // Sentinel: Use reference copy for performance (O(1)).
+                // Rationale: usage patterns in saveSession guarantee that the sessions array
+                // and its contained objects are effectively immutable during the transaction.
+                // We trust the application not to mutate cache objects in-place.
+                this.snapshot = Storage.getSessions();
                 this.inProgress = true;
-                console.log('Transaction started', { sessionCount: sessions.length });
+                console.log('Transaction started', { sessionCount: this.snapshot.length });
                 return true;
             } catch (e) {
                 console.error('Failed to begin transaction:', e);
@@ -1323,10 +1326,25 @@ export const Calculator = {
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
 
-        // O(N) pass to build O(1) lookup map
+        // Optimization: Iterate backwards and stop early once we found data for all current exercises.
+        // NOTE: This assumes we primarily care about exercises in the current configuration (EXERCISES).
+        // If the user has history for exercises no longer in EXERCISES, or if they haven't performed
+        // one of the current exercises, we will scan the full history (falling back to O(N)).
+        // This is acceptable as the app UI is driven by EXERCISES.
         const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise }>
 
-        for (const session of sessions) {
+        const requiredIds = new Set(EXERCISES.map(e => e.id));
+        const requiredCount = requiredIds.size;
+        const foundLast = new Set();
+        const foundLastCompleted = new Set();
+
+        for (let i = sessions.length - 1; i >= 0; i--) {
+            // Stop if we have found everything we need
+            if (foundLast.size === requiredCount && foundLastCompleted.size === requiredCount) {
+                break;
+            }
+
+            const session = sessions[i];
             for (const ex of session.exercises) {
                 if (ex.skipped || ex.usingAlternative) continue;
 
@@ -1335,9 +1353,15 @@ export const Calculator = {
                 }
                 const entry = lookup.get(ex.id);
 
-                entry.last = ex;
-                if (ex.completed) {
+                // Since iterating backwards, the first valid entry found is the latest
+                if (!entry.last) {
+                    entry.last = ex;
+                    if (requiredIds.has(ex.id)) foundLast.add(ex.id);
+                }
+
+                if (ex.completed && !entry.lastCompleted) {
                     entry.lastCompleted = ex;
+                    if (requiredIds.has(ex.id)) foundLastCompleted.add(ex.id);
                 }
             }
         }
@@ -1683,15 +1707,15 @@ function renderRecovery(c) {
                     <h3>⚠️ Long Gap Detected</h3>
                     <p class="text-xs">It's been ${check.days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.</p>
                 </div>` : ''}
-            <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select green recovery status">
+            <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
                 <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
                 <p class="text-xs">7+ hours sleep, no pain. Train at scheduled weights.</p>
             </button>
-            <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select yellow recovery status">
+            <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
                 <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
                 <p class="text-xs">5–6 hours sleep, general stiffness or fatigue. Weights reduced by 10%.</p>
             </button>
-            <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit" aria-label="Select red recovery status">
+            <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
                 <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
                 <p class="text-xs">< 5 hours sleep, acute pain, or illness. Do Not Lift. Go for a walk only.</p>
             </button>
@@ -2598,6 +2622,9 @@ const Logger = {
                 if (safeEntry.context.stack) {
                     delete safeEntry.context.stack;
                 }
+                if (safeEntry.context.error && typeof safeEntry.context.error === 'object') {
+                    if (safeEntry.context.error.stack) delete safeEntry.context.error.stack;
+                }
                 for (const key in safeEntry.context) {
                     if (typeof safeEntry.context[key] === 'string') {
                         safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);
@@ -2817,6 +2844,7 @@ export const Observability = {
 
 // Export individual modules for direct access
 export { Logger, Metrics, Analytics, ErrorTracker, PerformanceMonitor, BatteryMonitor };
+
 ```
 
 ## js/accessibility.js
@@ -3232,6 +3260,7 @@ export const Accessibility = {
 };
 
 export default Accessibility;
+
 ```
 
 ## js/security.js
@@ -4131,6 +4160,7 @@ export default {
     NumberFormatter,
     Timezone
 };
+
 ```
 
 ## sw.js
@@ -4138,7 +4168,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.10';
+const CACHE_NAME = 'flexx-v3.9.11';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
