@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.11 (Palette Update)
+**Version:** 3.9.12 (Palette Update)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -838,13 +838,13 @@ export const YELLOW_RECOVERY_MULTIPLIER = 0.9; // 90% weight on yellow recovery
 
 // === BARBELL CALCULATIONS ===
 export const OLYMPIC_BAR_WEIGHT_LBS = 45; // Standard Olympic barbell weight
-export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5]; // Available plate weights
+export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available plate weights
 
 // === AUTO-EXPORT ===
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.11';
+export const APP_VERSION = '3.9.12';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -917,7 +917,7 @@ export const ERROR_MESSAGES = {
 ```javascript
 import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
-import { Validator as SecurityValidator } from './security.js';
+import { Validator as SecurityValidator, Sanitizer } from './security.js';
 
 export const Storage = {
     KEYS: {
@@ -1176,16 +1176,22 @@ export const Storage = {
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
 
+            // Sentinel: Enforce strict schema validation before persistence
+            const cleanSession = Sanitizer.scrubSession(session);
+            if (!cleanSession) {
+                throw new Error('Session scrubbing failed');
+            }
+
             // Create a new array instance to ensure cache invalidation for consumers
             // relying on array identity (like Calculator's WeakMap)
             let newSessions;
             if (existingIndex !== -1) {
                 // Update existing session
                 newSessions = [...sessions];
-                newSessions[existingIndex] = session;
+                newSessions[existingIndex] = cleanSession;
             } else {
                 // Add new session
-                newSessions = [...sessions, session];
+                newSessions = [...sessions, cleanSession];
             }
 
             // Update cache and storage with the new array
@@ -1288,8 +1294,11 @@ export const Storage = {
 
             const sessions = Array.isArray(data) ? data : data.sessions;
 
-            if (confirm(`Import ${sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
-                localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            // Sentinel: Scrub sessions to prevent schema pollution
+            const cleanSessions = sessions.map(s => Sanitizer.scrubSession(s)).filter(s => s !== null);
+
+            if (confirm(`Import ${cleanSessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
+                localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(cleanSessions));
                 this._sessionCache = null;
                 window.location.reload();
             }
@@ -1331,16 +1340,14 @@ export const Calculator = {
         // If the user has history for exercises no longer in EXERCISES, or if they haven't performed
         // one of the current exercises, we will scan the full history (falling back to O(N)).
         // This is acceptable as the app UI is driven by EXERCISES.
-        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise }>
+        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise, recent: SessionExercise[] }>
 
         const requiredIds = new Set(EXERCISES.map(e => e.id));
-        const requiredCount = requiredIds.size;
-        const foundLast = new Set();
-        const foundLastCompleted = new Set();
+        const fullyResolved = new Set();
 
         for (let i = sessions.length - 1; i >= 0; i--) {
             // Stop if we have found everything we need
-            if (foundLast.size === requiredCount && foundLastCompleted.size === requiredCount) {
+            if (fullyResolved.size === requiredIds.size) {
                 break;
             }
 
@@ -1349,19 +1356,37 @@ export const Calculator = {
                 if (ex.skipped || ex.usingAlternative) continue;
 
                 if (!lookup.has(ex.id)) {
-                    lookup.set(ex.id, { last: null, lastCompleted: null });
+                    lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
                 }
                 const entry = lookup.get(ex.id);
+
+                // Add to recent history if we haven't hit the limit yet
+                if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
+                    entry.recent.push(ex);
+                }
 
                 // Since iterating backwards, the first valid entry found is the latest
                 if (!entry.last) {
                     entry.last = ex;
-                    if (requiredIds.has(ex.id)) foundLast.add(ex.id);
                 }
 
                 if (ex.completed && !entry.lastCompleted) {
                     entry.lastCompleted = ex;
-                    if (requiredIds.has(ex.id)) foundLastCompleted.add(ex.id);
+                }
+
+                // Check if this exercise is fully resolved (we have lastCompleted AND enough recent history)
+                // Note: We need lastCompleted to calculate progression.
+                // We need recent to detect stalls.
+                // If we have both, we can stop searching for this exercise.
+                if (requiredIds.has(ex.id) && !fullyResolved.has(ex.id)) {
+                    // We are resolved if:
+                    // 1. We have found a completed entry (so we know the last successful weight)
+                    // 2. We have filled the recent buffer (so we can detect stalls)
+                    // Note: If the user has NEVER completed the exercise, we will scan full history.
+                    // This is expected and necessary to find the last completion (which doesn't exist).
+                    if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) {
+                        fullyResolved.add(ex.id);
+                    }
                 }
             }
         }
@@ -1407,12 +1432,13 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
-        const recent = [];
-        for (let i = sessions.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) recent.push(ex);
-        }
-        if (recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
+        const cache = this._ensureCache(sessions);
+        const entry = cache.get(exerciseId);
+
+        // If we don't have enough history, it's not a stall
+        if (!entry || entry.recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
+
+        const recent = entry.recent;
         // Stall detected if all recent attempts failed at same weight
         return recent.every(e => !e.completed && e.weight === recent[0].weight);
     },
@@ -1765,6 +1791,10 @@ function renderLifting(c) {
             ${EXERCISES.map(ex => {
                 // Check state first for persistence
                 const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                const hasAlt = activeEx?.usingAlternative;
+                const name = hasAlt ? activeEx.altName : ex.name;
+                const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
+
                 const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
@@ -1773,25 +1803,25 @@ function renderLifting(c) {
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
-                            <h2 id="name-${ex.id}" style="margin-bottom:0">${ex.name}</h2>
+                            <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
                             <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(ex.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${ex.name}">🎥</a>
+                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
                     <div class="stepper-control">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${ex.name}">−</button>
-                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${ex.name}">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${ex.name}">+</button>
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
+                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${name}">
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${name}">+</button>
                     </div>
                     <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
-                    <div class="set-group" role="group" aria-label="Sets for ${ex.name}">
+                    <div class="set-group" role="group" aria-label="Sets for ${name}">
                         ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
                     </div>
                     <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs">Alternatives</summary>
                         <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none" aria-label="Select alternative for ${ex.name}">
                             <option value="">${ex.name}</option>
-                            ${ex.alternatives.map(a=>`<option value="${a}">${a}</option>`).join('')}
+                            ${ex.alternatives.map(a=>`<option value="${a}" ${hasAlt && activeEx.altName === a ? 'selected' : ''}>${a}</option>`).join('')}
                         </select>
                     </details>
                 </div>`;
@@ -1835,6 +1865,9 @@ function renderDecompress(c) {
 }
 
 function renderHistory(c) {
+    // Optimization: Create map for O(1) lookup
+    const exerciseMap = new Map(EXERCISES.map(e => [e.id, e]));
+
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
     const limit = State.historyLimit || 20;
@@ -1856,7 +1889,7 @@ function renderHistory(c) {
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
                 ${x.exercises.map(e => {
                      // Name Display Fix
-                     const rawName = e.altName || e.name || EXERCISES.find(cfg=>cfg.id===e.id)?.name || e.id;
+                     const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
                      const displayName = Sanitizer.sanitizeString(rawName);
                      return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
                 }).join('')}
@@ -2055,6 +2088,23 @@ window.swapAlt = (id) => {
         }
         if (nameElement) {
             nameElement.textContent = sel || cfg.name;
+        }
+
+        // Persist alternative choice to state immediately
+        if (State.activeSession) {
+            if (State.phase === 'lifting') {
+                const ex = State.activeSession.exercises.find(e => e.id === id);
+                if (ex) {
+                    ex.usingAlternative = !!sel;
+                    ex.altName = sel;
+                }
+            } else if (State.phase === 'warmup') {
+                const w = State.activeSession.warmup.find(e => e.id === id);
+                if (w) w.altUsed = sel;
+            } else if (State.phase === 'decompress') {
+                const d = State.activeSession.decompress.find(e => e.id === id);
+                if (d) d.altUsed = sel;
+            }
         }
     } catch (e) {
         console.error('Error swapping alternative:', e);
@@ -3290,6 +3340,85 @@ const SANITIZE_REGEX = /[<>"'\/]/g;
 
 export const Sanitizer = {
     /**
+     * Scrub session object to remove unauthorized fields (Schema Enforcement)
+     */
+    scrubSession(session) {
+        if (!session || typeof session !== 'object') return null;
+
+        // Allowlist of root fields
+        const clean = {
+            id: session.id,
+            date: session.date,
+            recoveryStatus: session.recoveryStatus,
+            sessionNumber: session.sessionNumber,
+            weekNumber: session.weekNumber,
+            totalVolume: session.totalVolume,
+            exercises: [],
+            warmup: [],
+            cardio: null,
+            decompress: null
+        };
+
+        // Deep scrub exercises
+        if (Array.isArray(session.exercises)) {
+            clean.exercises = session.exercises.map(ex => {
+                const cleanEx = {
+                    id: ex.id,
+                    name: ex.name,
+                    weight: ex.weight
+                };
+                // Optional fields
+                if (ex.setsCompleted !== undefined) cleanEx.setsCompleted = ex.setsCompleted;
+                if (ex.completed !== undefined) cleanEx.completed = ex.completed;
+                if (ex.usingAlternative !== undefined) cleanEx.usingAlternative = ex.usingAlternative;
+                if (ex.altName !== undefined) cleanEx.altName = ex.altName;
+                if (ex.skipped !== undefined) cleanEx.skipped = ex.skipped;
+                return cleanEx;
+            });
+        }
+
+        // Deep scrub warmup
+        if (Array.isArray(session.warmup)) {
+            clean.warmup = session.warmup.map(w => {
+                const cleanW = {
+                    id: w.id,
+                    completed: w.completed
+                };
+                if (w.altUsed !== undefined) cleanW.altUsed = w.altUsed;
+                return cleanW;
+            });
+        }
+
+        // Deep scrub cardio
+        if (session.cardio && typeof session.cardio === 'object') {
+            clean.cardio = {
+                type: session.cardio.type,
+                completed: session.cardio.completed
+            };
+        }
+
+        // Deep scrub decompress
+        if (session.decompress) {
+            if (Array.isArray(session.decompress)) {
+                clean.decompress = session.decompress.map(d => {
+                    const cleanD = {
+                        id: d.id,
+                        completed: d.completed
+                    };
+                    // Legacy support or if structure varies, align with Validator
+                    return cleanD;
+                });
+            } else if (typeof session.decompress === 'object') {
+                clean.decompress = {
+                    completed: session.decompress.completed
+                };
+            }
+        }
+
+        return clean;
+    },
+
+    /**
      * Sanitize HTML to prevent XSS attacks
      * Allows only safe tags and attributes
      */
@@ -3551,6 +3680,7 @@ export const Validator = {
         return { valid: true, errors: [], sessionCount: sessions.length };
     }
 };
+
 
 // === CONTENT SECURITY POLICY ===
 export const CSP = {
@@ -4168,7 +4298,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.11';
+const CACHE_NAME = 'flexx-v3.9.12';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',

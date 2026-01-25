@@ -377,8 +377,11 @@ export const Storage = {
 
             const sessions = Array.isArray(data) ? data : data.sessions;
 
-            if (confirm(`Import ${sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
-                localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            // Sentinel: Scrub sessions to prevent schema pollution
+            const cleanSessions = sessions.map(s => Sanitizer.scrubSession(s)).filter(s => s !== null);
+
+            if (confirm(`Import ${cleanSessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
+                localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(cleanSessions));
                 this._sessionCache = null;
                 window.location.reload();
             }

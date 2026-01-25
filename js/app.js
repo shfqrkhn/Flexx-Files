@@ -824,7 +824,7 @@ window.drawChart = (id) => {
         const { data, minVal, maxVal } = ChartCache.getData(id);
 
         if (data.length < 2) {
-            div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
+            div.innerHTML = '<p style="padding:1rem;color:var(--text-secondary)">Need 2+ logs.</p>';
             return;
         }
 
