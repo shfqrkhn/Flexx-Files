@@ -1,6 +1,6 @@
 import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
-import { Validator as SecurityValidator } from './security.js';
+import { Validator as SecurityValidator, Sanitizer } from './security.js';
 
 export const Storage = {
     KEYS: {
@@ -259,16 +259,22 @@ export const Storage = {
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
 
+            // Sentinel: Enforce strict schema validation before persistence
+            const cleanSession = Sanitizer.scrubSession(session);
+            if (!cleanSession) {
+                throw new Error('Session scrubbing failed');
+            }
+
             // Create a new array instance to ensure cache invalidation for consumers
             // relying on array identity (like Calculator's WeakMap)
             let newSessions;
             if (existingIndex !== -1) {
                 // Update existing session
                 newSessions = [...sessions];
-                newSessions[existingIndex] = session;
+                newSessions[existingIndex] = cleanSession;
             } else {
                 // Add new session
-                newSessions = [...sessions, session];
+                newSessions = [...sessions, cleanSession];
             }
 
             // Update cache and storage with the new array

@@ -20,6 +20,85 @@ const SANITIZE_REGEX = /[<>"'\/]/g;
 
 export const Sanitizer = {
     /**
+     * Scrub session object to remove unauthorized fields (Schema Enforcement)
+     */
+    scrubSession(session) {
+        if (!session || typeof session !== 'object') return null;
+
+        // Allowlist of root fields
+        const clean = {
+            id: session.id,
+            date: session.date,
+            recoveryStatus: session.recoveryStatus,
+            sessionNumber: session.sessionNumber,
+            weekNumber: session.weekNumber,
+            totalVolume: session.totalVolume,
+            exercises: [],
+            warmup: [],
+            cardio: null,
+            decompress: null
+        };
+
+        // Deep scrub exercises
+        if (Array.isArray(session.exercises)) {
+            clean.exercises = session.exercises.map(ex => {
+                const cleanEx = {
+                    id: ex.id,
+                    name: ex.name,
+                    weight: ex.weight
+                };
+                // Optional fields
+                if (ex.setsCompleted !== undefined) cleanEx.setsCompleted = ex.setsCompleted;
+                if (ex.completed !== undefined) cleanEx.completed = ex.completed;
+                if (ex.usingAlternative !== undefined) cleanEx.usingAlternative = ex.usingAlternative;
+                if (ex.altName !== undefined) cleanEx.altName = ex.altName;
+                if (ex.skipped !== undefined) cleanEx.skipped = ex.skipped;
+                return cleanEx;
+            });
+        }
+
+        // Deep scrub warmup
+        if (Array.isArray(session.warmup)) {
+            clean.warmup = session.warmup.map(w => {
+                const cleanW = {
+                    id: w.id,
+                    completed: w.completed
+                };
+                if (w.altUsed !== undefined) cleanW.altUsed = w.altUsed;
+                return cleanW;
+            });
+        }
+
+        // Deep scrub cardio
+        if (session.cardio && typeof session.cardio === 'object') {
+            clean.cardio = {
+                type: session.cardio.type,
+                completed: session.cardio.completed
+            };
+        }
+
+        // Deep scrub decompress
+        if (session.decompress) {
+            if (Array.isArray(session.decompress)) {
+                clean.decompress = session.decompress.map(d => {
+                    const cleanD = {
+                        id: d.id,
+                        completed: d.completed
+                    };
+                    // Legacy support or if structure varies, align with Validator
+                    return cleanD;
+                });
+            } else if (typeof session.decompress === 'object') {
+                clean.decompress = {
+                    completed: session.decompress.completed
+                };
+            }
+        }
+
+        return clean;
+    },
+
+    /**
      * Sanitize HTML to prevent XSS attacks
      * Allows only safe tags and attributes
      */
@@ -281,6 +360,7 @@ export const Validator = {
         return { valid: true, errors: [], sessionCount: sessions.length };
     }
 };
+
 
 // === CONTENT SECURITY POLICY ===
 export const CSP = {
