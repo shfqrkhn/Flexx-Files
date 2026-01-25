@@ -420,16 +420,14 @@ export const Calculator = {
         // If the user has history for exercises no longer in EXERCISES, or if they haven't performed
         // one of the current exercises, we will scan the full history (falling back to O(N)).
         // This is acceptable as the app UI is driven by EXERCISES.
-        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise }>
+        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise, recent: SessionExercise[] }>
 
         const requiredIds = new Set(EXERCISES.map(e => e.id));
-        const requiredCount = requiredIds.size;
-        const foundLast = new Set();
-        const foundLastCompleted = new Set();
+        const fullyResolved = new Set();
 
         for (let i = sessions.length - 1; i >= 0; i--) {
             // Stop if we have found everything we need
-            if (foundLast.size === requiredCount && foundLastCompleted.size === requiredCount) {
+            if (fullyResolved.size === requiredIds.size) {
                 break;
             }
 
@@ -438,19 +436,37 @@ export const Calculator = {
                 if (ex.skipped || ex.usingAlternative) continue;
 
                 if (!lookup.has(ex.id)) {
-                    lookup.set(ex.id, { last: null, lastCompleted: null });
+                    lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
                 }
                 const entry = lookup.get(ex.id);
+
+                // Add to recent history if we haven't hit the limit yet
+                if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
+                    entry.recent.push(ex);
+                }
 
                 // Since iterating backwards, the first valid entry found is the latest
                 if (!entry.last) {
                     entry.last = ex;
-                    if (requiredIds.has(ex.id)) foundLast.add(ex.id);
                 }
 
                 if (ex.completed && !entry.lastCompleted) {
                     entry.lastCompleted = ex;
-                    if (requiredIds.has(ex.id)) foundLastCompleted.add(ex.id);
+                }
+
+                // Check if this exercise is fully resolved (we have lastCompleted AND enough recent history)
+                // Note: We need lastCompleted to calculate progression.
+                // We need recent to detect stalls.
+                // If we have both, we can stop searching for this exercise.
+                if (requiredIds.has(ex.id) && !fullyResolved.has(ex.id)) {
+                    // We are resolved if:
+                    // 1. We have found a completed entry (so we know the last successful weight)
+                    // 2. We have filled the recent buffer (so we can detect stalls)
+                    // Note: If the user has NEVER completed the exercise, we will scan full history.
+                    // This is expected and necessary to find the last completion (which doesn't exist).
+                    if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) {
+                        fullyResolved.add(ex.id);
+                    }
                 }
             }
         }
@@ -496,12 +512,13 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
-        const recent = [];
-        for (let i = sessions.length - 1; i >= 0 && recent.length < CONST.STALL_DETECTION_SESSIONS; i--) {
-            const ex = sessions[i].exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) recent.push(ex);
-        }
-        if (recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
+        const cache = this._ensureCache(sessions);
+        const entry = cache.get(exerciseId);
+
+        // If we don't have enough history, it's not a stall
+        if (!entry || entry.recent.length < CONST.STALL_DETECTION_SESSIONS) return false;
+
+        const recent = entry.recent;
         // Stall detected if all recent attempts failed at same weight
         return recent.every(e => !e.completed && e.weight === recent[0].weight);
     },
