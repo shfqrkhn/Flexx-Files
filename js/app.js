@@ -259,6 +259,10 @@ function renderLifting(c) {
             ${EXERCISES.map(ex => {
                 // Check state first for persistence
                 const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                const hasAlt = activeEx?.usingAlternative;
+                const name = hasAlt ? activeEx.altName : ex.name;
+                const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
+
                 const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
@@ -267,25 +271,25 @@ function renderLifting(c) {
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
-                            <h2 id="name-${ex.id}" style="margin-bottom:0">${ex.name}</h2>
+                            <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
                             <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(ex.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${ex.name}">🎥</a>
+                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
                     <div class="stepper-control">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${ex.name}">−</button>
-                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${ex.name}">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${ex.name}">+</button>
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
+                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${name}">
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${name}">+</button>
                     </div>
                     <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
-                    <div class="set-group" role="group" aria-label="Sets for ${ex.name}">
+                    <div class="set-group" role="group" aria-label="Sets for ${name}">
                         ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
                     </div>
                     <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs">Alternatives</summary>
                         <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none" aria-label="Select alternative for ${ex.name}">
                             <option value="">${ex.name}</option>
-                            ${ex.alternatives.map(a=>`<option value="${a}">${a}</option>`).join('')}
+                            ${ex.alternatives.map(a=>`<option value="${a}" ${hasAlt && activeEx.altName === a ? 'selected' : ''}>${a}</option>`).join('')}
                         </select>
                     </details>
                 </div>`;
@@ -549,6 +553,23 @@ window.swapAlt = (id) => {
         }
         if (nameElement) {
             nameElement.textContent = sel || cfg.name;
+        }
+
+        // Persist alternative choice to state immediately
+        if (State.activeSession) {
+            if (State.phase === 'lifting') {
+                const ex = State.activeSession.exercises.find(e => e.id === id);
+                if (ex) {
+                    ex.usingAlternative = !!sel;
+                    ex.altName = sel;
+                }
+            } else if (State.phase === 'warmup') {
+                const w = State.activeSession.warmup.find(e => e.id === id);
+                if (w) w.altUsed = sel;
+            } else if (State.phase === 'decompress') {
+                const d = State.activeSession.decompress.find(e => e.id === id);
+                if (d) d.altUsed = sel;
+            }
         }
     } catch (e) {
         console.error('Error swapping alternative:', e);
