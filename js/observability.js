@@ -121,6 +121,9 @@ const Logger = {
                 if (safeEntry.context.stack) {
                     delete safeEntry.context.stack;
                 }
+                if (safeEntry.context.error && typeof safeEntry.context.error === 'object') {
+                    if (safeEntry.context.error.stack) delete safeEntry.context.error.stack;
+                }
                 for (const key in safeEntry.context) {
                     if (typeof safeEntry.context[key] === 'string') {
                         safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);

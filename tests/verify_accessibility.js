@@ -29,7 +29,8 @@ function runAccessibilityAudit() {
 
         // 2. Viewport
         assert(html.includes('<meta name="viewport"'), 'Viewport meta tag present');
-        assert(html.includes('user-scalable=no'), 'Viewport prevents zooming (app-like feel)');
+        assert(!html.includes('user-scalable=no'), 'Viewport allows zooming (accessibility)');
+        assert(!html.includes('maximum-scale=1.0'), 'Viewport allows scaling (accessibility)');
 
         // 3. Content Security Policy
         assert(html.includes('http-equiv="Content-Security-Policy"'), 'CSP meta tag present');
