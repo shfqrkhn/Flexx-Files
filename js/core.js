@@ -14,6 +14,7 @@ export const Storage = {
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
     _pendingWrite: null,
+    _pendingWriteType: null, // 'timeout' or 'idle'
     _isCorrupted: false,
 
     /**
@@ -314,7 +315,9 @@ export const Storage = {
             newSessions.splice(index, 1);
 
             this._sessionCache = newSessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
+
+            // Optimization: Non-blocking I/O
+            this.schedulePersistence();
             return true;
         } catch (e) {
             console.error('Failed to delete session:', e);
@@ -395,18 +398,37 @@ export const Storage = {
 
     schedulePersistence() {
         if (this._pendingWrite) {
-            clearTimeout(this._pendingWrite);
+            if (this._pendingWriteType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(this._pendingWrite);
+            } else {
+                clearTimeout(this._pendingWrite);
+            }
         }
-        // Defer to next tick to allow UI update
-        this._pendingWrite = setTimeout(() => {
-            this.flushPersistence();
-        }, 0);
+
+        // Use requestIdleCallback if available for better non-blocking behavior
+        if (typeof window.requestIdleCallback === 'function') {
+            this._pendingWriteType = 'idle';
+            this._pendingWrite = window.requestIdleCallback(() => {
+                this.flushPersistence();
+            }, { timeout: 2000 }); // Force write after 2s if no idle time
+        } else {
+            this._pendingWriteType = 'timeout';
+            // Defer to next tick to allow UI update
+            this._pendingWrite = setTimeout(() => {
+                this.flushPersistence();
+            }, 0);
+        }
     },
 
     flushPersistence() {
         if (this._pendingWrite) {
-            clearTimeout(this._pendingWrite);
+            if (this._pendingWriteType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(this._pendingWrite);
+            } else {
+                clearTimeout(this._pendingWrite);
+            }
             this._pendingWrite = null;
+            this._pendingWriteType = null;
         }
 
         if (!this._sessionCache) return;
