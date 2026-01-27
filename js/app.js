@@ -177,7 +177,7 @@ function renderRecovery(c) {
             <div class="container">
                 <h1>⏸️ Rest Required</h1>
                 <div class="card">
-                    <h3>You need 48 hours between workouts</h3>
+                    <h3>You need 24-48 hours between workouts</h3>
                     <p style="margin-top:1rem; color:var(--text-secondary)">
                         <strong style="color:var(--accent)">${check.hours} hours</strong> remaining
                     </p>
