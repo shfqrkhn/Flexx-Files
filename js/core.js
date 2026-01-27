@@ -314,7 +314,9 @@ export const Storage = {
             newSessions.splice(index, 1);
 
             this._sessionCache = newSessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
+
+            // Optimization: Non-blocking I/O
+            this.schedulePersistence();
             return true;
         } catch (e) {
             console.error('Failed to delete session:', e);
