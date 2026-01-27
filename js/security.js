@@ -493,6 +493,7 @@ export const AuditLog = {
 
     persist(entry) {
         try {
+            // Optimization: Use in-memory cache to avoid O(N) read/parse on every write
             this._ensureCache();
 
             this.persistedLogs.push(entry);
