@@ -171,7 +171,7 @@ function renderToday(c) {
 
 function renderRecovery(c) {
     const check = Validator.canStartWorkout();
-    if (!check.valid) {
+    if (!check.valid && !State.forceRestSkip) {
         const nextDate = check.nextAvailable ? Validator.formatDate(check.nextAvailable) : '';
         c.innerHTML = `
             <div class="container">
@@ -184,6 +184,7 @@ function renderRecovery(c) {
                     ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">Next available: ${nextDate}</p>` : ''}
                     <p class="text-xs" style="margin-top:1rem; opacity:0.7">Rest is when your muscles grow stronger. Come back when you're fully recovered.</p>
                 </div>
+                <button class="btn btn-secondary" onclick="window.skipRest()" aria-label="Skip rest requirement">Skip Rest (Debug)</button>
             </div>`;
         return;
     }
@@ -519,6 +520,7 @@ window.modW = (id, d) => {
             plateEl.textContent = `${Calculator.getPlateLoad(newValue)} / side`;
         }
 
+        if (State.activeSession) Storage.saveDraft(State.activeSession);
         Haptics.light();
     } catch (e) {
         console.error('Error modifying weight:', e);
@@ -539,6 +541,20 @@ window.togS = (ex, i, max) => {
             Haptics.success();
             // Auto-start rest timer if not the last set
             if(i < max-1) Timer.start();
+        }
+
+        // Persistence: Update active session state
+        if (State.activeSession?.exercises) {
+            const activeEx = State.activeSession.exercises.find(e => e.id === ex);
+            if (activeEx) {
+                const card = document.getElementById(`card-${ex}`);
+                if (card) {
+                    const sets = card.querySelectorAll('.set-btn.completed').length;
+                    activeEx.setsCompleted = sets;
+                    activeEx.completed = sets >= max;
+                }
+            }
+            Storage.saveDraft(State.activeSession);
         }
     } catch (e) {
         console.error('Error toggling set:', e);
@@ -585,6 +601,7 @@ window.swapAlt = (id) => {
                 const d = State.activeSession.decompress.find(e => e.id === id);
                 if (d) d.altUsed = sel;
             }
+            Storage.saveDraft(State.activeSession);
         }
     } catch (e) {
         console.error('Error swapping alternative:', e);
@@ -679,6 +696,7 @@ window.nextPhase = (p) => {
         };
         ScreenReader.announce(`Starting ${phaseNames[p] || p} phase`);
 
+        if (State.activeSession) Storage.saveDraft(State.activeSession);
         render();
     } catch (e) {
         Logger.error('Error transitioning phase', { phase: p, error: e.message });
@@ -741,6 +759,10 @@ window.finish = async () => {
     }
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
+window.skipRest = () => {
+    State.forceRestSkip = true;
+    render();
+};
 window.startCardio = () => Timer.start(300);
 window.loadMoreHistory = () => {
     State.historyLimit = (State.historyLimit || 20) + 20;
