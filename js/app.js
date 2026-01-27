@@ -899,7 +899,7 @@ const ChartCache = {
         const newIndex = new Map();
         for (const [id, val] of oldIndex) {
             newIndex.set(id, {
-                data: [...val.data],
+                data: val.data, // Shared reference (Copy-On-Write)
                 minVal: val.minVal,
                 maxVal: val.maxVal
             });
@@ -918,6 +918,9 @@ const ChartCache = {
 
             if (!ex.usingAlternative) {
                 const entry = index.get(ex.id);
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const v = ex.weight;
                 entry.data.push({ d: new Date(session.date), v });
                 if (v < entry.minVal) entry.minVal = v;
@@ -938,6 +941,9 @@ const ChartCache = {
             const lastPoint = entry.data[entry.data.length - 1];
             // Compare timestamps
             if (new Date(session.date).getTime() === lastPoint.d.getTime()) {
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const popped = entry.data.pop();
 
                 if (popped.v === entry.minVal || popped.v === entry.maxVal) {
