@@ -1803,7 +1803,7 @@ function renderToday(c) {
 
 function renderRecovery(c) {
     const check = Validator.canStartWorkout();
-    if (!check.valid) {
+    if (!check.valid && !State.forceRestSkip) {
         const nextDate = check.nextAvailable ? Validator.formatDate(check.nextAvailable) : '';
         c.innerHTML = `
             <div class="container">
@@ -1816,6 +1816,7 @@ function renderRecovery(c) {
                     ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">Next available: ${nextDate}</p>` : ''}
                     <p class="text-xs" style="margin-top:1rem; opacity:0.7">Rest is when your muscles grow stronger. Come back when you're fully recovered.</p>
                 </div>
+                <button class="btn btn-secondary" onclick="window.skipRest()" aria-label="Skip rest requirement">Skip Rest (Debug)</button>
             </div>`;
         return;
     }
@@ -1860,7 +1861,7 @@ function renderWarmup(c) {
             const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
             const isChecked = activeW ? activeW.completed : false;
             const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = altUsed || w.name;
+            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
             // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
             const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
@@ -1977,7 +1978,7 @@ function renderDecompress(c) {
                 const isChecked = activeD ? activeD.completed : false;
                 const val = activeD ? activeD.val : '';
                 const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = altUsed || d.name;
+                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
                 const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
 
                 return `
@@ -2474,6 +2475,10 @@ window.finish = async () => {
     }
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
+window.skipRest = () => {
+    State.forceRestSkip = true;
+    render();
+};
 window.startCardio = () => Timer.start(300);
 window.loadMoreHistory = () => {
     State.historyLimit = (State.historyLimit || 20) + 20;
@@ -2519,35 +2524,118 @@ window.imp = (el) => {
 const ChartCache = {
     // WeakMap<sessionsArray, Map<exerciseId, dataArray>>
     _cache: new WeakMap(),
+    _lastSessions: null,
+    _lastIndex: null,
+
+    _cloneIndex(oldIndex) {
+        const newIndex = new Map();
+        for (const [id, val] of oldIndex) {
+            newIndex.set(id, {
+                data: [...val.data],
+                minVal: val.minVal,
+                maxVal: val.maxVal
+            });
+        }
+        return newIndex;
+    },
+
+    _addToIndex(index, session) {
+        if (!session.exercises) return;
+        for (let j = 0; j < session.exercises.length; j++) {
+            const ex = session.exercises[j];
+
+            if (!index.has(ex.id)) {
+                index.set(ex.id, { data: [], minVal: Infinity, maxVal: -Infinity });
+            }
+
+            if (!ex.usingAlternative) {
+                const entry = index.get(ex.id);
+                const v = ex.weight;
+                entry.data.push({ d: new Date(session.date), v });
+                if (v < entry.minVal) entry.minVal = v;
+                if (v > entry.maxVal) entry.maxVal = v;
+            }
+        }
+    },
+
+    _removeFromIndex(index, session) {
+        if (!session.exercises) return;
+        for (let j = 0; j < session.exercises.length; j++) {
+            const ex = session.exercises[j];
+            if (ex.usingAlternative) continue;
+
+            const entry = index.get(ex.id);
+            if (!entry || entry.data.length === 0) continue;
+
+            const lastPoint = entry.data[entry.data.length - 1];
+            // Compare timestamps
+            if (new Date(session.date).getTime() === lastPoint.d.getTime()) {
+                const popped = entry.data.pop();
+
+                if (popped.v === entry.minVal || popped.v === entry.maxVal) {
+                    let newMin = Infinity;
+                    let newMax = -Infinity;
+                    for (const p of entry.data) {
+                        if (p.v < newMin) newMin = p.v;
+                        if (p.v > newMax) newMax = p.v;
+                    }
+                    entry.minVal = newMin;
+                    entry.maxVal = newMax;
+                }
+            }
+        }
+    },
 
     getData(exerciseId) {
         const sessions = Storage.getSessions();
         if (!this._cache.has(sessions)) {
-            // Optimization: Index ALL exercises in one pass O(N)
-            // This prevents re-scanning the session history for every chart switch
-            const index = new Map();
+            let index = null;
 
-            for (let i = 0; i < sessions.length; i++) {
-                const s = sessions[i];
-                if (!s.exercises) continue;
+            // Optimization: Incremental Update
+            if (this._lastSessions && this._lastIndex) {
+                const oldLen = this._lastSessions.length;
+                const newLen = sessions.length;
 
-                for (let j = 0; j < s.exercises.length; j++) {
-                    const ex = s.exercises[j];
+                // Find divergence index
+                let divergenceIndex = 0;
+                const minLen = Math.min(oldLen, newLen);
+                while (divergenceIndex < minLen && sessions[divergenceIndex] === this._lastSessions[divergenceIndex]) {
+                    divergenceIndex++;
+                }
 
-                    if (!index.has(ex.id)) {
-                        index.set(ex.id, { data: [], minVal: Infinity, maxVal: -Infinity });
-                    }
-
-                    if (!ex.usingAlternative) {
-                        const entry = index.get(ex.id);
-                        const v = ex.weight;
-                        entry.data.push({ d: new Date(s.date), v });
-                        if (v < entry.minVal) entry.minVal = v;
-                        if (v > entry.maxVal) entry.maxVal = v;
-                    }
+                // Case 1: Append (Everything up to oldLen matches)
+                if (divergenceIndex === oldLen && newLen === oldLen + 1) {
+                    index = this._cloneIndex(this._lastIndex);
+                    this._addToIndex(index, sessions[newLen - 1]);
+                }
+                // Case 2: Replace Last (Everything up to oldLen-1 matches)
+                else if (divergenceIndex === oldLen - 1 && newLen === oldLen) {
+                    index = this._cloneIndex(this._lastIndex);
+                    this._removeFromIndex(index, this._lastSessions[oldLen - 1]);
+                    this._addToIndex(index, sessions[newLen - 1]);
+                }
+                // Case 3: Remove Last (Everything up to newLen matches)
+                else if (divergenceIndex === newLen && newLen === oldLen - 1) {
+                    index = this._cloneIndex(this._lastIndex);
+                    this._removeFromIndex(index, this._lastSessions[oldLen - 1]);
+                }
+                // Case 4: Remove Last to Empty
+                else if (newLen === 0 && oldLen === 1) {
+                    index = new Map();
                 }
             }
+
+            if (!index) {
+                // Full rebuild
+                index = new Map();
+                for (let i = 0; i < sessions.length; i++) {
+                    this._addToIndex(index, sessions[i]);
+                }
+            }
+
             this._cache.set(sessions, index);
+            this._lastSessions = sessions;
+            this._lastIndex = index;
         }
 
         const sessionCache = this._cache.get(sessions);

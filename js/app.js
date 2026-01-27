@@ -229,7 +229,7 @@ function renderWarmup(c) {
             const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
             const isChecked = activeW ? activeW.completed : false;
             const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = altUsed || w.name;
+            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
             // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
             const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
@@ -346,7 +346,7 @@ function renderDecompress(c) {
                 const isChecked = activeD ? activeD.completed : false;
                 const val = activeD ? activeD.val : '';
                 const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = altUsed || d.name;
+                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
                 const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
 
                 return `
