@@ -171,7 +171,7 @@ function renderToday(c) {
 
 function renderRecovery(c) {
     const check = Validator.canStartWorkout();
-    if (!check.valid) {
+    if (!check.valid && !State.forceRestSkip) {
         const nextDate = check.nextAvailable ? Validator.formatDate(check.nextAvailable) : '';
         c.innerHTML = `
             <div class="container">
@@ -184,6 +184,7 @@ function renderRecovery(c) {
                     ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">Next available: ${nextDate}</p>` : ''}
                     <p class="text-xs" style="margin-top:1rem; opacity:0.7">Rest is when your muscles grow stronger. Come back when you're fully recovered.</p>
                 </div>
+                <button class="btn btn-secondary" onclick="window.skipRest()" style="margin-top:1rem; width:100%" aria-label="Skip rest period requirement">Skip Rest Period</button>
             </div>`;
         return;
     }
@@ -224,11 +225,16 @@ function renderWarmup(c) {
                 <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
             </div>
             <div class="card">
-        ${WARMUP.map(w => `
+        ${WARMUP.map(w => {
+            const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+            const isChecked = activeW ? activeW.completed : false;
+            const alt = activeW ? activeW.altUsed : '';
+
+            return `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
-                        <input type="checkbox" class="big-check" id="w-${w.id}">
+                        <input type="checkbox" class="big-check" id="w-${w.id}" ${isChecked ? 'checked' : ''} onchange="window.toggleWarmup('${w.id}')">
                         <div><div id="name-${w.id}">${w.name}</div><div class="text-xs">${w.reps}</div></div>
                     </label>
                     <a id="vid-${w.id}" href="${Sanitizer.sanitizeURL(w.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${w.name}">🎥</a>
@@ -236,10 +242,11 @@ function renderWarmup(c) {
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
                         <option value="">${w.name}</option>
-                        ${w.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
+                        ${w.alternatives.map(a => `<option value="${a}" ${alt === a ? 'selected' : ''}>${a}</option>`).join('')}
                     </select>
                 </details>
-            </div>`).join('')}
+            </div>`;
+        }).join('')}
         </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
 }
 
@@ -270,7 +277,8 @@ function renderLifting(c) {
                 // Optimization: Use for loop to avoid garbage collection pressure from Array.from
                 let setButtonsHtml = '';
                 for (let i = 0; i < ex.sets; i++) {
-                    setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
+                    const isSetCompleted = activeEx?.completedSets ? activeEx.completedSets[i] : false;
+                    setButtonsHtml += `<button type="button" class="set-btn ${isSetCompleted ? 'completed' : ''}" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="${isSetCompleted}">${i+1}</button>`;
                 }
 
                 return `
@@ -306,35 +314,47 @@ function renderLifting(c) {
 }
 
 function renderCardio(c) {
-    const defaultLink = CARDIO_OPTIONS[0].video;
+    const activeCardio = State.activeSession?.cardio || { type: CARDIO_OPTIONS[0].name, completed: false };
+    const selectedType = activeCardio.type;
+    const isCompleted = activeCardio.completed;
+    const selectedOpt = CARDIO_OPTIONS.find(o => o.name === selectedType) || CARDIO_OPTIONS[0];
+    const vidUrl = selectedOpt.video;
+
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(defaultLink)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${CARDIO_OPTIONS[0].name}">🎥</a></div>
-            <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}">${o.name}</option>`).join('')}</select>
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${selectedOpt.name}">🎥</a></div>
+            <select id="cardio-type" onchange="window.swapCardioLink()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}" ${o.name === selectedType ? 'selected' : ''}>${o.name}</option>`).join('')}</select>
             <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
-            <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done"><span>Completed</span></label>
+            <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done" ${isCompleted ? 'checked' : ''} onchange="window.toggleCardio(this.checked)"><span>Completed</span></label>
         </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')" aria-label="Proceed to decompression phase">Next: Decompress</button></div>`;
 }
 
 function renderDecompress(c) {
     c.innerHTML = `
         <div class="container"><h1>Decompress</h1>
-            ${DECOMPRESSION.map(d => `
+            ${DECOMPRESSION.map(d => {
+                const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+                const isChecked = activeD ? activeD.completed : false;
+                const val = activeD ? activeD.val : '';
+                const alt = activeD ? activeD.altUsed : '';
+
+                return `
                 <div class="card">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                         <h3 id="name-${d.id}">${d.name}</h3>
                         <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(d.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
                     </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" value="${val || ''}" onchange="window.inputDecompress('${d.id}', this.value)">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.toggleDecompress('${d.id}')"><span>Completed</span></label>
                     <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                         <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
                             <option value="">Default</option>
-                            ${d.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
+                            ${d.alternatives.map(a => `<option value="${a}" ${alt === a ? 'selected' : ''}>${a}</option>`).join('')}
                         </select>
                     </details>
-                </div>`).join('')}
+                </div>`;
+            }).join('')}
             <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
@@ -462,6 +482,60 @@ function renderProtocol(c) {
 }
 
 // === HANDLERS ===
+window.skipRest = () => {
+    Metrics.mark('rest-skip');
+    Logger.info('Rest period skipped by user');
+    State.forceRestSkip = true;
+    render();
+};
+
+window.toggleWarmup = (id) => {
+    try {
+        const w = State.activeSession.warmup.find(x => x.id === id);
+        if (!w) {
+            console.error('Warmup item not found in state:', id);
+            return;
+        }
+        w.completed = !w.completed;
+        Storage.saveDraft(State.activeSession);
+    } catch (e) {
+        console.error('Error toggling warmup:', e);
+    }
+};
+
+window.toggleCardio = (completed) => {
+    if (!State.activeSession) return;
+    if (!State.activeSession.cardio) {
+        State.activeSession.cardio = { type: CARDIO_OPTIONS[0].name, completed: false };
+    }
+    State.activeSession.cardio.completed = completed;
+    Storage.saveDraft(State.activeSession);
+};
+
+window.toggleDecompress = (id) => {
+    if (!State.activeSession) return;
+    if (!State.activeSession.decompress) {
+         State.activeSession.decompress = DECOMPRESSION.map(d => ({ id: d.id, val: null, completed: false, altUsed: '' }));
+    }
+    const d = State.activeSession.decompress.find(x => x.id === id);
+    if (d) {
+        d.completed = !d.completed;
+        Storage.saveDraft(State.activeSession);
+    }
+};
+
+window.inputDecompress = (id, val) => {
+    if (!State.activeSession) return;
+    if (!State.activeSession.decompress) {
+         State.activeSession.decompress = DECOMPRESSION.map(d => ({ id: d.id, val: null, completed: false, altUsed: '' }));
+    }
+    const d = State.activeSession.decompress.find(x => x.id === id);
+    if (d) {
+        d.val = val;
+        Storage.saveDraft(State.activeSession);
+    }
+};
+
 window.setRec = async (r) => {
     Metrics.mark('recovery-select-start');
 
@@ -477,11 +551,26 @@ window.setRec = async (r) => {
     }
 
     State.recovery = r;
+    const sessions = Storage.getSessions();
     State.activeSession = {
         id: crypto.randomUUID(),
         date: new Date().toISOString(),
         recoveryStatus: r,
-        exercises: []
+        warmup: WARMUP.map(w => ({ id: w.id, completed: false, altUsed: '' })),
+        exercises: EXERCISES.map(ex => ({
+            id: ex.id,
+            name: ex.name,
+            weight: Calculator.getRecommendedWeight(ex.id, r, sessions),
+            setsCompleted: 0,
+            completedSets: Array(ex.sets).fill(false),
+            completed: false,
+            usingAlternative: false,
+            skipped: false,
+            altName: ''
+        })),
+        cardio: { type: CARDIO_OPTIONS[0].name, completed: false },
+        decompress: DECOMPRESSION.map(d => ({ id: d.id, val: null, completed: false, altUsed: '' })),
+        phase: 'warmup'
     };
     State.phase = 'warmup';
 
@@ -506,7 +595,10 @@ window.modW = (id, d) => {
 
         // Persistence: Update active session state
         const activeEx = State.activeSession?.exercises?.find(e => e.id === id);
-        if (activeEx) activeEx.weight = newValue;
+        if (activeEx) {
+            activeEx.weight = newValue;
+            Storage.saveDraft(State.activeSession);
+        }
 
         // Palette: Update plate math display in real-time
         const plateEl = document.getElementById(`pl-${id}`);
@@ -520,14 +612,32 @@ window.modW = (id, d) => {
     }
 };
 
-window.togS = (ex, i, max) => {
+window.togS = (exId, i, max) => {
     try {
-        const el = document.getElementById(`s-${ex}-${i}`);
+        const el = document.getElementById(`s-${exId}-${i}`);
         if (!el) {
-            console.error(`Set button not found: s-${ex}-${i}`);
+            console.error(`Set button not found: s-${exId}-${i}`);
             return;
         }
-        const isCompleted = el.classList.toggle('completed');
+
+        const activeEx = State.activeSession?.exercises?.find(e => e.id === exId);
+        let isCompleted = false;
+
+        if (activeEx) {
+            if (!activeEx.completedSets) {
+                 activeEx.completedSets = Array(max).fill(false);
+            }
+            activeEx.completedSets[i] = !activeEx.completedSets[i];
+            activeEx.setsCompleted = activeEx.completedSets.filter(Boolean).length;
+            activeEx.completed = activeEx.setsCompleted === max;
+
+            isCompleted = activeEx.completedSets[i];
+            Storage.saveDraft(State.activeSession);
+        } else {
+            isCompleted = el.classList.toggle('completed');
+        }
+
+        el.classList.toggle('completed', isCompleted);
         el.setAttribute('aria-pressed', isCompleted);
 
         if(isCompleted) {
@@ -580,6 +690,7 @@ window.swapAlt = (id) => {
                 const d = State.activeSession.decompress.find(e => e.id === id);
                 if (d) d.altUsed = sel;
             }
+            Storage.saveDraft(State.activeSession);
         }
     } catch (e) {
         console.error('Error swapping alternative:', e);
@@ -603,6 +714,12 @@ window.swapCardioLink = () => {
                 vidElement.setAttribute('aria-label', `Watch video for ${cfg.name}`);
             }
         }
+
+        if (State.activeSession) {
+             if (!State.activeSession.cardio) State.activeSession.cardio = { completed: false };
+             State.activeSession.cardio.type = selName;
+             Storage.saveDraft(State.activeSession);
+        }
     } catch (e) {
         console.error('Error swapping cardio link:', e);
     }
@@ -610,59 +727,34 @@ window.swapCardioLink = () => {
 
 window.nextPhase = (p) => {
     try {
+        // Robustness: Ensure exercises are initialized if missing (legacy drafts)
         if(p === 'lifting') {
-            State.activeSession.warmup = WARMUP.map(w => {
-                const checkElement = document.getElementById(`w-${w.id}`);
-                const altElement = document.getElementById(`alt-${w.id}`);
-                return {
-                    id: w.id,
-                    completed: checkElement ? checkElement.checked : false,
-                    altUsed: altElement ? altElement.value : ''
-                };
-            });
-
-            // Initialize exercises with recommended weights for persistence
-            const sessions = Storage.getSessions();
-            State.activeSession.exercises = EXERCISES.map(ex => ({
-                id: ex.id,
-                name: ex.name,
-                weight: Calculator.getRecommendedWeight(ex.id, State.recovery, sessions),
-                setsCompleted: 0,
-                completed: false,
-                usingAlternative: false,
-                skipped: false
-            }));
-        }
-
-        if(p === 'cardio') {
-            State.activeSession.exercises = EXERCISES.map(ex => {
-                const weightElement = document.getElementById(`w-${ex.id}`);
-                const w = weightElement ? (parseFloat(weightElement.value) || 0) : 0;
-                const sets = document.querySelectorAll(`#card-${ex.id} .set-btn.completed`).length;
-                const altElement = document.getElementById(`alt-${ex.id}`);
-                const alt = altElement ? altElement.value : '';
-                return {
+            if (!State.activeSession.exercises || State.activeSession.exercises.length === 0) {
+                const sessions = Storage.getSessions();
+                State.activeSession.exercises = EXERCISES.map(ex => ({
                     id: ex.id,
                     name: ex.name,
-                    weight: w,
-                    setsCompleted: sets,
-                    completed: sets === ex.sets,
-                    usingAlternative: !!alt,
-                    altName: alt
-                };
-            });
+                    weight: Calculator.getRecommendedWeight(ex.id, State.recovery, sessions),
+                    setsCompleted: 0,
+                    completedSets: Array(ex.sets).fill(false),
+                    completed: false,
+                    usingAlternative: false,
+                    skipped: false,
+                    altName: ''
+                }));
+            }
         }
 
+        // Robustness: Ensure cardio is initialized if missing
         if(p === 'decompress') {
-            const cardioTypeElement = document.getElementById('cardio-type');
-            const cardioDoneElement = document.getElementById('cardio-done');
-            State.activeSession.cardio = {
-                type: cardioTypeElement ? cardioTypeElement.value : 'Unknown',
-                completed: cardioDoneElement ? cardioDoneElement.checked : false
-            };
+            if (!State.activeSession.cardio) {
+                State.activeSession.cardio = { type: CARDIO_OPTIONS[0].name, completed: false };
+            }
         }
 
         State.phase = p;
+        if (State.activeSession) State.activeSession.phase = p;
+        Storage.saveDraft(State.activeSession);
         Logger.info('Phase transition', { from: State.phase, to: p });
         Analytics.track('phase_transition', { phase: p });
 
@@ -686,17 +778,9 @@ window.finish = async () => {
     try {
         if(!await Modal.show({ type: 'confirm', title: 'Finish?', text: 'Save this session?' })) return;
 
-        State.activeSession.decompress = DECOMPRESSION.map(d => {
-            const valElement = document.getElementById(`val-${d.id}`);
-            const doneElement = document.getElementById(`done-${d.id}`);
-            const altElement = document.getElementById(`alt-${d.id}`);
-            return {
-                id: d.id,
-                val: valElement?.value || null,
-                completed: doneElement ? doneElement.checked : false,
-                altUsed: altElement ? altElement.value : ''
-            };
-        });
+        if (!State.activeSession.decompress) {
+             State.activeSession.decompress = DECOMPRESSION.map(d => ({ id: d.id, val: null, completed: false, altUsed: '' }));
+        }
 
         Metrics.mark('session-save-start');
         const savedSession = Storage.saveSession(State.activeSession);
@@ -928,7 +1012,7 @@ if (mainContent) {
         if (restore) {
             State.activeSession = draft;
             State.recovery = draft.recoveryStatus;
-            State.phase = 'lifting'; // Resume at lifting phase
+            State.phase = draft.phase || 'lifting'; // Resume at correct phase
             Logger.info('Draft session restored', { id: draft.id });
             ScreenReader.announce('Previous session recovered successfully');
         } else {
