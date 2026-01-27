@@ -66,6 +66,7 @@ const Logger = {
     logs: [],
     maxLogs: 500,
     errorCache: null,
+    _pendingWrite: null,
 
     setLevel(level) {
         this.level = LOG_LEVELS[level] || LOG_LEVELS.INFO;
@@ -164,9 +165,27 @@ const Logger = {
             if (this.errorCache.length > 50) {
                 this.errorCache.shift();
             }
-            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
+
+            // Optimization: Batch writes to localStorage
+            if (this._pendingWrite) clearTimeout(this._pendingWrite);
+            this._pendingWrite = setTimeout(() => this.flushErrors(), 1000);
+
         } catch (e) {
             console.error('Failed to persist error:', e);
+        }
+    },
+
+    flushErrors() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+        if (this.errorCache) {
+            try {
+                localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
+            } catch (e) {
+                console.error('Failed to flush errors:', e);
+            }
         }
     },
 
@@ -360,6 +379,10 @@ export const Observability = {
         ErrorTracker.init();
         PerformanceMonitor.init();
         BatteryMonitor.init();
+
+        // Ensure errors are flushed on page unload
+        window.addEventListener('beforeunload', () => Logger.flushErrors());
+
         Logger.info('Observability system initialized', { version: APP_VERSION });
     },
 

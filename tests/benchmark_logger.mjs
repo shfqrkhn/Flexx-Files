@@ -92,6 +92,10 @@ async function runBenchmark() {
     const end = performance.now();
     const duration = end - start;
 
+    // Force flush to ensure data is "persisted" (although we check memory cache)
+    // and to verify flush logic works without errors
+    Logger.flushErrors();
+
     global.console = realConsole;
 
     const setItemCalls = localStorageMock.setItemCalls;
