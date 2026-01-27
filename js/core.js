@@ -199,6 +199,11 @@ export const Storage = {
             const sessions = JSON.parse(data);
             // Validate it's an array
             this._sessionCache = Array.isArray(sessions) ? sessions : [];
+            if (!this._sessionCache._version && typeof crypto !== 'undefined' && crypto.randomUUID) {
+                this._sessionCache._version = crypto.randomUUID();
+            } else if (!this._sessionCache._version) {
+                this._sessionCache._version = 'init-' + Date.now();
+            }
             return this._sessionCache;
         } catch (e) {
             console.error('Failed to load sessions:', e);
@@ -270,6 +275,8 @@ export const Storage = {
             // Create a new array instance to ensure cache invalidation for consumers
             // relying on array identity (like Calculator's WeakMap)
             let newSessions;
+            const isAppend = existingIndex === -1;
+
             if (existingIndex !== -1) {
                 // Update existing session
                 newSessions = [...sessions];
@@ -277,6 +284,18 @@ export const Storage = {
             } else {
                 // Add new session
                 newSessions = [...sessions, cleanSession];
+            }
+
+            // Versioning for Calculator cache optimization
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                newSessions._version = crypto.randomUUID();
+            } else {
+                newSessions._version = Date.now() + '-' + Math.random();
+            }
+
+            // Optimization: Link to parent for O(1) append in Calculator
+            if (isAppend && sessions._version) {
+                newSessions._parentVersion = sessions._version;
             }
 
             // Update cache and storage with the new array
@@ -471,6 +490,7 @@ export const Storage = {
 export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
+    _stableCache: new Map(), // Optimization: Cache by session version (sessions._version)
     _lastSessions: null,
     _lastLookup: null,
 
@@ -574,10 +594,38 @@ export const Calculator = {
         return null;
     },
 
+    _updateCaches(sessions, lookup) {
+        this._cache.set(sessions, lookup);
+        this._lastSessions = sessions;
+        this._lastLookup = lookup;
+
+        if (sessions._version) {
+             if (this._stableCache.size > 50) this._stableCache.clear();
+             this._stableCache.set(sessions._version, lookup);
+        }
+    },
+
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
 
-        // Optimization: Incremental Update
+        // Optimization: Versioned Stable Cache (Safe Context-Lost Recovery)
+        if (sessions._version && this._stableCache.has(sessions._version)) {
+            const lookup = this._stableCache.get(sessions._version);
+            this._cache.set(sessions, lookup);
+            return lookup;
+        }
+
+        // Optimization: Parent Version Lookup (O(1) Append)
+        if (sessions._parentVersion && this._stableCache.has(sessions._parentVersion)) {
+            const parentLookup = this._stableCache.get(sessions._parentVersion);
+            const newLookup = this._cloneLookup(parentLookup);
+            this._applySession(newLookup, sessions[sessions.length - 1]);
+
+            this._updateCaches(sessions, newLookup);
+            return newLookup;
+        }
+
+        // Optimization: Incremental Update (via _lastSessions)
         if (this._lastSessions && this._lastLookup) {
             const oldLen = this._lastSessions.length;
             const newLen = sessions.length;
@@ -589,14 +637,11 @@ export const Calculator = {
                 const newLookup = this._cloneLookup(this._lastLookup);
                 this._applySession(newLookup, sessions[newLen - 1]);
 
-                this._cache.set(sessions, newLookup);
-                this._lastSessions = sessions;
-                this._lastLookup = newLookup;
+                this._updateCaches(sessions, newLookup);
                 return newLookup;
             }
 
             // Case 2: Replace Last (newLen === oldLen)
-            // e.g. User updated the current workout
             if (newLen === oldLen && oldLen > 0 &&
                 (sessions[0] === this._lastSessions[0] &&
                  (oldLen === 1 || sessions[oldLen - 2] === this._lastSessions[oldLen - 2]))) {
@@ -605,32 +650,25 @@ export const Calculator = {
                 this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
                 this._applySession(newLookup, sessions[newLen - 1]);
 
-                this._cache.set(sessions, newLookup);
-                this._lastSessions = sessions;
-                this._lastLookup = newLookup;
+                this._updateCaches(sessions, newLookup);
                 return newLookup;
             }
 
             // Case 3: Remove Last (newLen === oldLen - 1)
-            // e.g. User deleted the last workout
             if (newLen === oldLen - 1 && newLen > 0 &&
                  (sessions[0] === this._lastSessions[0] && sessions[newLen - 1] === this._lastSessions[newLen - 1])) {
 
                  const newLookup = this._cloneLookup(this._lastLookup);
                  this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
 
-                 this._cache.set(sessions, newLookup);
-                 this._lastSessions = sessions;
-                 this._lastLookup = newLookup;
+                 this._updateCaches(sessions, newLookup);
                  return newLookup;
             }
 
             // Case 4: Remove Last to Empty (1 -> 0)
             if (newLen === 0 && oldLen === 1) {
                  const newLookup = new Map();
-                 this._cache.set(sessions, newLookup);
-                 this._lastSessions = sessions;
-                 this._lastLookup = newLookup;
+                 this._updateCaches(sessions, newLookup);
                  return newLookup;
             }
         }
@@ -691,9 +729,7 @@ export const Calculator = {
             }
         }
 
-        this._cache.set(sessions, lookup);
-        this._lastSessions = sessions;
-        this._lastLookup = lookup;
+        this._updateCaches(sessions, lookup);
         return lookup;
     },
 
