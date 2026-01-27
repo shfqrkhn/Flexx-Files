@@ -577,6 +577,25 @@ export const Calculator = {
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
 
+        // Optimization: Content Equality Check
+        // If array identity differs but content is identical (same session objects in same order),
+        // we can reuse the cached lookup.
+        if (this._lastSessions && sessions.length === this._lastSessions.length) {
+            let match = true;
+            // Iterate backwards as changes are usually at the end
+            for (let i = sessions.length - 1; i >= 0; i--) {
+                if (sessions[i] !== this._lastSessions[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                this._cache.set(sessions, this._lastLookup);
+                this._lastSessions = sessions; // Update reference to newest array
+                return this._lastLookup;
+            }
+        }
+
         // Optimization: Incremental Update
         if (this._lastSessions && this._lastLookup) {
             const oldLen = this._lastSessions.length;
