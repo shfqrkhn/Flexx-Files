@@ -785,38 +785,40 @@ const ChartCache = {
     getData(exerciseId) {
         const sessions = Storage.getSessions();
         if (!this._cache.has(sessions)) {
-            this._cache.set(sessions, new Map());
-        }
-        const sessionCache = this._cache.get(sessions);
+            // Optimization: Index ALL exercises in one pass O(N)
+            // This prevents re-scanning the session history for every chart switch
+            const index = new Map();
 
-        if (sessionCache.has(exerciseId)) {
-            return sessionCache.get(exerciseId);
-        }
+            for (let i = 0; i < sessions.length; i++) {
+                const s = sessions[i];
+                if (!s.exercises) continue;
 
-        // Optimization: Single pass O(N) instead of filter/map chaining O(3N)
-        const data = [];
-        let minVal = Infinity;
-        let maxVal = -Infinity;
+                for (let j = 0; j < s.exercises.length; j++) {
+                    const ex = s.exercises[j];
 
-        for (let i = 0; i < sessions.length; i++) {
-            const exercises = sessions[i].exercises;
-            for (let j = 0; j < exercises.length; j++) {
-                const ex = exercises[j];
-                if (ex.id === exerciseId) {
-                    if (!ex.usingAlternative) {
-                        const v = ex.weight;
-                        data.push({d: new Date(sessions[i].date), v});
-                        if (v < minVal) minVal = v;
-                        if (v > maxVal) maxVal = v;
+                    if (!index.has(ex.id)) {
+                        index.set(ex.id, { data: [], minVal: Infinity, maxVal: -Infinity });
                     }
-                    break; // Stop looking in this session
+
+                    if (!ex.usingAlternative) {
+                        const entry = index.get(ex.id);
+                        const v = ex.weight;
+                        entry.data.push({ d: new Date(s.date), v });
+                        if (v < entry.minVal) entry.minVal = v;
+                        if (v > entry.maxVal) entry.maxVal = v;
+                    }
                 }
             }
+            this._cache.set(sessions, index);
         }
 
-        const result = { data, minVal, maxVal };
-        sessionCache.set(exerciseId, result);
-        return result;
+        const sessionCache = this._cache.get(sessions);
+
+        if (!sessionCache.has(exerciseId)) {
+            return { data: [], minVal: Infinity, maxVal: -Infinity };
+        }
+
+        return sessionCache.get(exerciseId);
     }
 };
 
