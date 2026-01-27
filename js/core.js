@@ -311,7 +311,7 @@ export const Storage = {
             }
 
             // Optimization: Create new array via splice to avoid O(N) filter callbacks
-            const newSessions = [...sessions];
+            const newSessions = sessions.slice();
             newSessions.splice(index, 1);
 
             this._sessionCache = newSessions; // Update cache
