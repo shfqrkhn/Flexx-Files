@@ -736,6 +736,19 @@ export const Calculator = {
     getBaseRecommendation(exerciseId, sessions) {
         // Deload every N weeks
         if (this.isDeloadWeek(sessions)) {
+            // Check if we are already in the deload week (mid-week)
+            if (sessions.length > 0) {
+                const lastSession = sessions[sessions.length - 1];
+                const currentWeek = Math.ceil((sessions.length + 1) / CONST.SESSIONS_PER_WEEK);
+                const lastWeek = Math.ceil(lastSession.sessionNumber / CONST.SESSIONS_PER_WEEK);
+
+                if (lastWeek === currentWeek) {
+                    // Already deloaded. Return last attempt weight (maintain).
+                    const lastAttempt = this.getLastExercise(exerciseId, sessions);
+                    return lastAttempt ? lastAttempt.weight : CONST.OLYMPIC_BAR_WEIGHT_LBS;
+                }
+            }
+
             const last = this.getLastCompletedExercise(exerciseId, sessions);
             return last ? last.weight * CONST.DELOAD_PERCENTAGE : CONST.OLYMPIC_BAR_WEIGHT_LBS;
         }
