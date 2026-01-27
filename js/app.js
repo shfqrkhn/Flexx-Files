@@ -454,7 +454,7 @@ function renderProtocol(c) {
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="margin-bottom:1rem">
-                <button class="btn btn-secondary" style="width:auto; padding:0.5rem 1rem" onclick="State.view='settings';render()" aria-label="Back to settings">← Back</button>
+                <button class="btn btn-secondary" style="width:auto; padding:0.5rem 1rem" onclick="window.closeProtocol()" aria-label="Back to settings">← Back</button>
             </div>
             <h1>The Protocol</h1>
             <div class="card">
@@ -863,6 +863,10 @@ window.loadMoreHistory = () => {
 };
 window.viewProtocol = () => {
     State.view = 'protocol';
+    render();
+};
+window.closeProtocol = () => {
+    State.view = 'settings';
     render();
 };
 window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
