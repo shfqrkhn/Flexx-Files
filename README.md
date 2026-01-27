@@ -1875,24 +1875,27 @@ function renderLifting(c) {
                 </div>
             </div>
             <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
-            ${EXERCISES.map(ex => {
-                // Check state first for persistence
-                const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
-                const hasAlt = activeEx?.usingAlternative;
-                const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
-                const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
+            ${(() => {
+                let exercisesHtml = '';
+                for (let j = 0; j < EXERCISES.length; j++) {
+                    const ex = EXERCISES[j];
+                    // Check state first for persistence
+                    const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                    const hasAlt = activeEx?.usingAlternative;
+                    const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
+                    const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
 
-                const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
-                const last = Calculator.getLastCompletedExercise(ex.id, sessions);
-                const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
+                    const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
+                    const last = Calculator.getLastCompletedExercise(ex.id, sessions);
+                    const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
 
-                // Optimization: Use for loop to avoid garbage collection pressure from Array.from
-                let setButtonsHtml = '';
-                for (let i = 0; i < ex.sets; i++) {
-                    setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
-                }
+                    // Optimization: Use for loop to avoid garbage collection pressure from Array.from
+                    let setButtonsHtml = '';
+                    for (let i = 0; i < ex.sets; i++) {
+                        setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
+                    }
 
-                return `
+                    exercisesHtml += `
                 <div class="card" id="card-${ex.id}">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
                         <div>
@@ -1919,7 +1922,9 @@ function renderLifting(c) {
                         </select>
                     </details>
                 </div>`;
-            }).join('')}
+                }
+                return exercisesHtml;
+            })()}
             <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="Proceed to cardio phase">Next: Cardio</button>
         </div>`;
 }
