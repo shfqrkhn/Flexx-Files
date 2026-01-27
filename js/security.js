@@ -440,6 +440,7 @@ export const IntegrityChecker = {
 // === AUDIT LOG ===
 export const AuditLog = {
     logs: [],
+    persistedLogs: null,
     maxLogs: 100,
 
     /**
@@ -480,15 +481,19 @@ export const AuditLog = {
 
     persist(entry) {
         try {
-            const audits = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
-            audits.push(entry);
-
-            // Keep only last 50 critical events
-            if (audits.length > 50) {
-                audits.shift();
+            // Initialize cache if needed
+            if (!this.persistedLogs) {
+                this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
             }
 
-            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(audits));
+            this.persistedLogs.push(entry);
+
+            // Keep only last 50 critical events
+            if (this.persistedLogs.length > 50) {
+                this.persistedLogs.shift();
+            }
+
+            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
         }
@@ -500,7 +505,11 @@ export const AuditLog = {
 
     getPersistedLogs() {
         try {
-            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
+            if (this.persistedLogs) {
+                return [...this.persistedLogs];
+            }
+            this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
+            return [...this.persistedLogs];
         } catch (e) {
             return [];
         }
@@ -508,6 +517,7 @@ export const AuditLog = {
 
     clear() {
         this.logs = [];
+        this.persistedLogs = null;
         localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
     }
 };
