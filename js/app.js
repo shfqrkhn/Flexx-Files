@@ -781,36 +781,85 @@ window.imp = (el) => {
 const ChartCache = {
     // WeakMap<sessionsArray, Map<exerciseId, dataArray>>
     _cache: new WeakMap(),
+    _lastSessions: null,
+    _lastIndex: null,
 
     getData(exerciseId) {
         const sessions = Storage.getSessions();
-        if (!this._cache.has(sessions)) {
-            // Optimization: Index ALL exercises in one pass O(N)
-            // This prevents re-scanning the session history for every chart switch
-            const index = new Map();
+        if (this._cache.has(sessions)) {
+            const sessionCache = this._cache.get(sessions);
+            return sessionCache.get(exerciseId) || { data: [], minVal: Infinity, maxVal: -Infinity };
+        }
 
-            for (let i = 0; i < sessions.length; i++) {
-                const s = sessions[i];
-                if (!s.exercises) continue;
+        // Optimization: Check for incremental update (Append)
+        // Detect if this session array is a direct append to the last processed array
+        if (this._lastSessions && this._lastIndex &&
+            sessions.length === this._lastSessions.length + 1 &&
+            sessions[0] === this._lastSessions[0] &&
+            sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
 
-                for (let j = 0; j < s.exercises.length; j++) {
-                    const ex = s.exercises[j];
+            const index = new Map(this._lastIndex); // Shallow copy map structure
+            const newSession = sessions[sessions.length - 1];
 
-                    if (!index.has(ex.id)) {
-                        index.set(ex.id, { data: [], minVal: Infinity, maxVal: -Infinity });
-                    }
-
+            if (newSession.exercises) {
+                for (const ex of newSession.exercises) {
                     if (!ex.usingAlternative) {
-                        const entry = index.get(ex.id);
+                        let entry = index.get(ex.id);
+
+                        // Copy-on-write: If entry is shared (same reference as in _lastIndex), copy it
+                        if (entry && entry === this._lastIndex.get(ex.id)) {
+                            entry = {
+                                data: [...entry.data], // Copy data array
+                                minVal: entry.minVal,
+                                maxVal: entry.maxVal
+                            };
+                            index.set(ex.id, entry);
+                        } else if (!entry) {
+                            entry = { data: [], minVal: Infinity, maxVal: -Infinity };
+                            index.set(ex.id, entry);
+                        }
+
                         const v = ex.weight;
-                        entry.data.push({ d: new Date(s.date), v });
+                        entry.data.push({ d: new Date(newSession.date), v });
                         if (v < entry.minVal) entry.minVal = v;
                         if (v > entry.maxVal) entry.maxVal = v;
                     }
                 }
             }
+
             this._cache.set(sessions, index);
+            this._lastSessions = sessions;
+            this._lastIndex = index;
+            return index.get(exerciseId) || { data: [], minVal: Infinity, maxVal: -Infinity };
         }
+
+        // Optimization: Index ALL exercises in one pass O(N)
+        // This prevents re-scanning the session history for every chart switch
+        const index = new Map();
+
+        for (let i = 0; i < sessions.length; i++) {
+            const s = sessions[i];
+            if (!s.exercises) continue;
+
+            for (let j = 0; j < s.exercises.length; j++) {
+                const ex = s.exercises[j];
+
+                if (!index.has(ex.id)) {
+                    index.set(ex.id, { data: [], minVal: Infinity, maxVal: -Infinity });
+                }
+
+                if (!ex.usingAlternative) {
+                    const entry = index.get(ex.id);
+                    const v = ex.weight;
+                    entry.data.push({ d: new Date(s.date), v });
+                    if (v < entry.minVal) entry.minVal = v;
+                    if (v > entry.maxVal) entry.maxVal = v;
+                }
+            }
+        }
+        this._cache.set(sessions, index);
+        this._lastSessions = sessions;
+        this._lastIndex = index;
 
         const sessionCache = this._cache.get(sessions);
 
