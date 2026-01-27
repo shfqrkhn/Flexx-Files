@@ -438,6 +438,13 @@ export const IntegrityChecker = {
 };
 
 // === AUDIT LOG ===
+const CRITICAL_EVENTS = new Set([
+    'failed_validation',
+    'xss_attempt',
+    'rate_limit_exceeded',
+    'integrity_check_failed'
+]);
+
 export const AuditLog = {
     logs: [],
     persistedLogs: null,
@@ -470,21 +477,23 @@ export const AuditLog = {
     },
 
     isCritical(event) {
-        const criticalEvents = [
-            'failed_validation',
-            'xss_attempt',
-            'rate_limit_exceeded',
-            'integrity_check_failed'
-        ];
-        return criticalEvents.includes(event);
+        return CRITICAL_EVENTS.has(event);
+    },
+
+    _ensureCache() {
+        if (!this.persistedLogs) {
+            try {
+                this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
+            } catch (e) {
+                Logger.error('Failed to load audit log cache', { error: e.message });
+                this.persistedLogs = [];
+            }
+        }
     },
 
     persist(entry) {
         try {
-            // Initialize cache if needed
-            if (!this.persistedLogs) {
-                this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
-            }
+            this._ensureCache();
 
             this.persistedLogs.push(entry);
 
@@ -505,10 +514,7 @@ export const AuditLog = {
 
     getPersistedLogs() {
         try {
-            if (this.persistedLogs) {
-                return [...this.persistedLogs];
-            }
-            this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
+            this._ensureCache();
             return [...this.persistedLogs];
         } catch (e) {
             return [];
