@@ -1,172 +1,130 @@
 
-import { performance } from 'perf_hooks';
-
-// Mocks
-global.window = {
-    location: { reload: () => {} },
-    crypto: { subtle: { digest: async () => {} } }
-};
-global.document = {
-    createElement: () => ({ innerHTML: '', textContent: '' }),
-    querySelector: () => null
-};
-
-// Handle navigator safely
-try {
-    Object.defineProperty(global, 'navigator', {
-        value: { userAgent: 'Benchmark/1.0' },
-        writable: true,
-        configurable: true
-    });
-} catch (e) {
-    console.warn("Could not mock navigator:", e);
-}
-
-
-global.localStorage = {
-    getItem: () => null,
-    setItem: () => {},
-    removeItem: () => {},
-    key: () => null,
-    length: 0
-};
-global.alert = () => {};
-global.confirm = () => true;
-
-// Import module under test
-import { Calculator, Storage } from '../js/core.js';
+import { Calculator } from '../js/core.js';
 import { EXERCISES } from '../js/config.js';
 
-console.log("Starting Benchmark...");
+// Mock localStorage if needed (though we try to avoid using Storage directly if possible)
+if (typeof global !== 'undefined') {
+    global.localStorage = {
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+        length: 0,
+        key: () => null
+    };
+    global.window = {};
+    global.console = {
+        ...console,
+        // log: () => {}, // Silence logs
+        warn: () => {},
+        error: console.error
+    };
+}
 
-// Helpers
-function generateSession(id, date, exerciseCount = 5) {
-    const exercises = EXERCISES.slice(0, exerciseCount).map(ex => ({
+function generateSession(id, sessionNumber, exercisesConfig) {
+    // Only include the first exercise to force scanning for others
+    const subset = exercisesConfig.slice(0, 1);
+
+    const exercises = subset.map(ex => ({
         id: ex.id,
-        name: ex.name,
-        weight: 100 + Math.random() * 50,
-        setsCompleted: 3,
         completed: true,
+        weight: 100 + (sessionNumber % 10) * 5,
+        setsCompleted: 3,
+        sets: 3,
+        reps: 10,
         skipped: false,
         usingAlternative: false
     }));
 
     return {
-        id: `session-${id}`,
-        date: new Date(date).toISOString(),
-        recoveryStatus: 'green',
-        exercises
+        id: `session_${id}`,
+        date: new Date().toISOString(),
+        sessionNumber: sessionNumber,
+        weekNumber: Math.ceil(sessionNumber / 3),
+        exercises: exercises
     };
 }
 
-function generateHistory(count) {
-    const sessions = [];
-    const startDate = new Date('2023-01-01');
-    for (let i = 0; i < count; i++) {
-        const date = new Date(startDate);
-        date.setDate(startDate.getDate() + i * 2); // Every 2 days
-        sessions.push(generateSession(i, date));
-    }
-    return sessions;
-}
-
-// Benchmark Config
-const HISTORY_SIZE = 5000;
-const ITERATIONS = 100;
-
 async function runBenchmark() {
-    const history = generateHistory(HISTORY_SIZE);
+    console.log("Starting Benchmark...");
 
     // Warmup
-    Calculator._ensureCache(history);
+    const exercises = EXERCISES;
+    let sessions = [];
 
-    // 1. Initial Scan (Simulate page load / first calc)
-    // We clear cache to force scan
+    // Benchmark 1: Sequential Append (Incremental)
     Calculator._cache = new WeakMap();
     Calculator._lastSessions = null;
     Calculator._lastLookup = null;
 
-    let start = performance.now();
-    Calculator._ensureCache(history);
-    let end = performance.now();
-    console.log(`Initial Full Scan (${HISTORY_SIZE} sessions): ${(end - start).toFixed(3)} ms`);
+    const COUNT = 2000;
+    const sessionObjects = [];
 
-    // 2. Incremental Update (Append 1 session)
-    // This represents adding a new workout
-    const newSession = generateSession(HISTORY_SIZE, new Date());
-    const newHistory = [...history, newSession];
-
-    // Reset to "Before Append" state
-    Calculator._cache = new WeakMap();
-    Calculator._lastSessions = null;
-    Calculator._lastLookup = null;
-    Calculator._ensureCache(history);
-
-    start = performance.now();
-    Calculator._ensureCache(newHistory);
-    end = performance.now();
-    console.log(`Incremental Append (1 session): ${(end - start).toFixed(3)} ms`);
-
-    // 3. Non-Incremental Update (e.g. modify old session)
-    // This forces full rescan in current implementation
-    const modifiedHistory = [...history];
-    modifiedHistory[0] = { ...modifiedHistory[0], recoveryStatus: 'red' }; // Change something
-
-    // Reset to initial state
-    Calculator._cache = new WeakMap();
-    Calculator._lastSessions = null;
-    Calculator._lastLookup = null;
-    Calculator._ensureCache(history);
-
-    start = performance.now();
-    Calculator._ensureCache(modifiedHistory);
-    end = performance.now();
-    console.log(`Non-Incremental Update (Modify 1st session): ${(end - start).toFixed(3)} ms`);
-
-    // 4. Remove Last Session (Undo)
-    const shortHistory = history.slice(0, -1);
-
-    // Reset to initial state
-    Calculator._cache = new WeakMap();
-    Calculator._lastSessions = null;
-    Calculator._lastLookup = null;
-    Calculator._ensureCache(history);
-
-    start = performance.now();
-    Calculator._ensureCache(shortHistory);
-    end = performance.now();
-    console.log(`Remove Last Session (Undo): ${(end - start).toFixed(3)} ms`);
-
-    // 5. Stress Test: Rapid toggling (which creates new arrays)
-    // Simulate toggling "completed" on the last session multiple times
-    // Current implementation: changing last session should technically TRIGGER INCREMENTAL UPDATE?
-    // Let's check the logic:
-    // sessions.length === this._lastSessions.length + 1
-    // If we MODIFY last session, length is SAME. So it falls back to full scan.
-
-    console.log(`\nStress Test: 100 rapid updates to last session...`);
-    let currentHistory = history;
-
-    // Setup initial state
-    Calculator._cache = new WeakMap();
-    Calculator._lastSessions = null;
-    Calculator._lastLookup = null;
-    Calculator._ensureCache(currentHistory);
-
-    start = performance.now();
-    for (let i = 0; i < 100; i++) {
-        // Create new array with modified last session
-        const lastSession = currentHistory[currentHistory.length - 1];
-        const updatedLast = { ...lastSession, completed: !lastSession.completed };
-        const nextHistory = [...currentHistory];
-        nextHistory[nextHistory.length - 1] = updatedLast; // Same length
-
-        Calculator._ensureCache(nextHistory);
-        currentHistory = nextHistory;
+    for (let i = 0; i < COUNT; i++) {
+        sessionObjects.push(generateSession(i, i + 1, exercises));
     }
-    end = performance.now();
-    console.log(`Rapid Updates Total Time: ${(end - start).toFixed(3)} ms`);
-    console.log(`Average per update: ${((end - start) / 100).toFixed(3)} ms`);
+
+    const start = performance.now();
+
+    for (let i = 0; i < COUNT; i++) {
+        sessions = [...sessions, sessionObjects[i]];
+        Calculator._ensureCache(sessions);
+    }
+
+    const end = performance.now();
+    const duration = end - start;
+
+    console.log(`Benchmark: Sequential Append of ${COUNT} sessions (Partial Exercises)`);
+    console.log(`Total Time: ${duration.toFixed(2)} ms`);
+    console.log(`Average Time per op: ${(duration / COUNT).toFixed(4)} ms`);
+
+    // Benchmark 2: Full Rebuild (Simulate page reload with large history)
+    Calculator._cache = new WeakMap();
+    Calculator._lastSessions = null;
+    Calculator._lastLookup = null;
+
+    const startRebuild = performance.now();
+    Calculator._ensureCache(sessions);
+    const endRebuild = performance.now();
+
+    console.log(`Benchmark: Full Rebuild of ${COUNT} sessions (Partial Exercises)`);
+    console.log(`Total Time: ${(endRebuild - startRebuild).toFixed(2)} ms`);
+
+    // Benchmark 3: Non-Incremental Update
+    Calculator._cache = new WeakMap();
+    Calculator._lastSessions = sessions.slice(0, 100);
+    Calculator._ensureCache(sessions.slice(0, 100));
+
+    const startJump = performance.now();
+    Calculator._ensureCache(sessions);
+    const endJump = performance.now();
+
+    console.log(`Benchmark: Large Jump (100 -> ${COUNT} sessions) (Partial Exercises)`);
+    console.log(`Total Time: ${(endJump - startJump).toFixed(2)} ms`);
+
+    // Benchmark 4: Identity Change (Same Content)
+    // This should be optimized by content equality check.
+    Calculator._ensureCache(sessions); // Ensure hot
+    const sessionsCopy = [...sessions]; // Shallow copy
+
+    const startIdentity = performance.now();
+    Calculator._ensureCache(sessionsCopy);
+    const endIdentity = performance.now();
+
+    console.log(`Benchmark: Identity Change (Same Content)`);
+    console.log(`Total Time: ${(endIdentity - startIdentity).toFixed(2)} ms`);
+
+    // Benchmark 5: Prefix Change (First session modified)
+    // This MUST NOT be optimized (should do full scan or safe update).
+    // The equality check should fail.
+
+    const sessionsPrefixChange = [ { ...sessions[0], id: 'modified' }, ...sessions.slice(1) ];
+
+    const startPrefix = performance.now();
+    Calculator._ensureCache(sessionsPrefixChange);
+    const endPrefix = performance.now();
+
+    console.log(`Benchmark: Prefix Change (Should be slower / Correctness Check)`);
+    console.log(`Total Time: ${(endPrefix - startPrefix).toFixed(2)} ms`);
 }
 
 runBenchmark().catch(console.error);
