@@ -1006,6 +1006,8 @@ if (mainContent) {
     // 11. Clean up resources on page unload
     window.addEventListener('beforeunload', () => {
         clearInterval(draftAutoSaveInterval);
+        // Flush any pending session writes
+        Storage.flushPersistence();
         // Final draft save before unload
         if (State.activeSession) {
             Storage.saveDraft(State.activeSession);
