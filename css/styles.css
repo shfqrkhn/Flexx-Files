@@ -99,7 +99,7 @@ body.reduce-motion *::after {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Allow text selection for accessibility - only disable on interactive elements */
-button, .nav-item, .stepper-btn, .set-btn { user-select: none; }
+button, .nav-item, .stepper-btn, .set-btn { user-select: none; touch-action: manipulation; }
 
 body {
     background: var(--bg-primary); color: var(--text-primary);

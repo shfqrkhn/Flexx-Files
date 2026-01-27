@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.16 (Security Hardening)
+**Version:** 3.9.17 (Progression Fixes)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -269,7 +269,7 @@ body.reduce-motion *::after {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Allow text selection for accessibility - only disable on interactive elements */
-button, .nav-item, .stepper-btn, .set-btn { user-select: none; }
+button, .nav-item, .stepper-btn, .set-btn { user-select: none; touch-action: manipulation; }
 
 body {
     background: var(--bg-primary); color: var(--text-primary);
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.15';
+export const APP_VERSION = '3.9.17';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -1528,6 +1528,21 @@ export const Calculator = {
         // Normal progression: add weight on success
         const last = this.getLastExercise(exerciseId, sessions);
         if (!last) return CONST.OLYMPIC_BAR_WEIGHT_LBS;
+
+        // Check if coming out of a deload week
+        if (sessions.length > 0) {
+            const lastSession = sessions[sessions.length - 1];
+            const lastWeek = Math.ceil(lastSession.sessionNumber / CONST.SESSIONS_PER_WEEK);
+
+            // If previous session was a deload week, resume from pre-deload weight
+            if (lastWeek % CONST.DELOAD_WEEK_INTERVAL === 0) {
+                const preDeloadEx = this.getLastNonDeloadExercise(exerciseId, sessions);
+                if (preDeloadEx) {
+                    return preDeloadEx.completed ? preDeloadEx.weight + CONST.WEIGHT_INCREMENT_LBS : preDeloadEx.weight;
+                }
+            }
+        }
+
         return last.completed ? last.weight + CONST.WEIGHT_INCREMENT_LBS : last.weight;
     },
 
@@ -1553,6 +1568,18 @@ export const Calculator = {
         const cache = this._ensureCache(sessions);
         const entry = cache.get(exerciseId);
         return entry ? entry.lastCompleted : null;
+    },
+
+    getLastNonDeloadExercise(exerciseId, sessions) {
+        for (let i = sessions.length - 1; i >= 0; i--) {
+            const s = sessions[i];
+            const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
+            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
+
+            const ex = s.exercises.find(e => e.id === exerciseId && !e.skipped && !e.usingAlternative);
+            if (ex) return ex;
+        }
+        return null;
     },
 
     getPlateLoad(weight) {
@@ -4605,7 +4632,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.15';
+const CACHE_NAME = 'flexx-v3.9.17';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
