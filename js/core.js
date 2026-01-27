@@ -474,62 +474,165 @@ export const Calculator = {
     _lastSessions: null,
     _lastLookup: null,
 
+    _cloneLookup(lookup) {
+        const newLookup = new Map();
+        for (const [key, val] of lookup) {
+            newLookup.set(key, {
+                last: val.last,
+                lastCompleted: val.lastCompleted,
+                recent: [...val.recent] // Copy array to prevent shared mutation
+            });
+        }
+        return newLookup;
+    },
+
+    _applySession(lookup, session) {
+        for (const ex of session.exercises) {
+            if (ex.skipped || ex.usingAlternative) continue;
+
+            if (!lookup.has(ex.id)) {
+                lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+            }
+            const entry = lookup.get(ex.id);
+
+            // Add to recent history (newest at start)
+            entry.recent.unshift(ex);
+            if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
+                entry.recent.pop();
+            }
+
+            // Update last (this is the newest)
+            entry.last = ex;
+
+            // Update lastCompleted
+            if (ex.completed) {
+                entry.lastCompleted = ex;
+            }
+        }
+    },
+
+    _rollbackSession(lookup, session, historySessions) {
+        // Rollback is trickier because we need to undo state changes.
+        // historySessions is the FULL history array from which we are removing the last session.
+        // We use it to refill 'recent' buffer and find previous 'lastCompleted' if needed.
+
+        // We need to know which exercises were in the session we are removing
+        for (const ex of session.exercises) {
+            if (ex.skipped || ex.usingAlternative) continue;
+
+            const entry = lookup.get(ex.id);
+            if (!entry) continue;
+
+            // 1. Remove from 'recent'
+            // The removed exercise should be at index 0 of recent
+            if (entry.recent.length > 0 && entry.recent[0] === ex) {
+                entry.recent.shift();
+
+                // Refill 'recent' from history if it dropped below threshold
+                if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
+                    this._scanBackwardsForRecent(entry, ex.id, historySessions, historySessions.length - 2);
+                }
+            }
+
+            // 2. Update 'last'
+            entry.last = entry.recent.length > 0 ? entry.recent[0] : null;
+
+            // 3. Update 'lastCompleted'
+            if (entry.lastCompleted === ex) {
+                const recentCompleted = entry.recent.find(e => e.completed);
+                if (recentCompleted) {
+                    entry.lastCompleted = recentCompleted;
+                } else {
+                    entry.lastCompleted = this._scanBackwardsForCompleted(ex.id, historySessions, historySessions.length - 2);
+                }
+            }
+        }
+    },
+
+    _scanBackwardsForRecent(entry, exerciseId, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            if (entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) break;
+
+            const session = sessions[i];
+            const ex = session.exercises.find(e => e.id === exerciseId);
+            if (ex && !ex.skipped && !ex.usingAlternative) {
+                if (!entry.recent.includes(ex)) {
+                    entry.recent.push(ex);
+                }
+            }
+        }
+    },
+
+    _scanBackwardsForCompleted(exerciseId, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            const session = sessions[i];
+            const ex = session.exercises.find(e => e.id === exerciseId);
+            if (ex && !ex.skipped && !ex.usingAlternative && ex.completed) {
+                return ex;
+            }
+        }
+        return null;
+    },
+
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
 
-        // Optimization: Check for incremental update (Append)
-        // Detect if this session array is a direct append to the last processed array
-        if (this._lastSessions && this._lastLookup &&
-            sessions.length === this._lastSessions.length + 1 &&
-            sessions[0] === this._lastSessions[0] &&
-            sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
+        // Optimization: Incremental Update
+        if (this._lastSessions && this._lastLookup) {
+            const oldLen = this._lastSessions.length;
+            const newLen = sessions.length;
 
-            const newLookup = new Map();
-            // Shallow clone entries, reuse 'recent' arrays (copy-on-write)
-            for (const [key, val] of this._lastLookup) {
-                newLookup.set(key, {
-                    last: val.last,
-                    lastCompleted: val.lastCompleted,
-                    recent: val.recent
-                });
+            // Case 1: Append (newLen === oldLen + 1)
+            if (newLen === oldLen + 1 &&
+                (oldLen === 0 || (sessions[0] === this._lastSessions[0] && sessions[oldLen - 1] === this._lastSessions[oldLen - 1]))) {
+
+                const newLookup = this._cloneLookup(this._lastLookup);
+                this._applySession(newLookup, sessions[newLen - 1]);
+
+                this._cache.set(sessions, newLookup);
+                this._lastSessions = sessions;
+                this._lastLookup = newLookup;
+                return newLookup;
             }
 
-            // Process only the new session (at the end)
-            const session = sessions[sessions.length - 1];
-            for (const ex of session.exercises) {
-                if (ex.skipped || ex.usingAlternative) continue;
+            // Case 2: Replace Last (newLen === oldLen)
+            // e.g. User updated the current workout
+            if (newLen === oldLen && oldLen > 0 &&
+                (sessions[0] === this._lastSessions[0] &&
+                 (oldLen === 1 || sessions[oldLen - 2] === this._lastSessions[oldLen - 2]))) {
 
-                if (!newLookup.has(ex.id)) {
-                    newLookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
-                }
-                const entry = newLookup.get(ex.id);
+                const newLookup = this._cloneLookup(this._lastLookup);
+                this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+                this._applySession(newLookup, sessions[newLen - 1]);
 
-                // Copy-on-write for 'recent' if shared
-                const lastEntry = this._lastLookup.get(ex.id);
-                if (lastEntry && entry.recent === lastEntry.recent) {
-                    entry.recent = [...entry.recent];
-                }
-
-                // Add to recent history
-                // Since 'recent' is ordered [newest, ..., oldest], we unshift.
-                entry.recent.unshift(ex);
-                if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
-                    entry.recent.pop();
-                }
-
-                // Update last (this is the newest)
-                entry.last = ex;
-
-                // Update lastCompleted
-                if (ex.completed) {
-                    entry.lastCompleted = ex;
-                }
+                this._cache.set(sessions, newLookup);
+                this._lastSessions = sessions;
+                this._lastLookup = newLookup;
+                return newLookup;
             }
 
-            this._cache.set(sessions, newLookup);
-            this._lastSessions = sessions;
-            this._lastLookup = newLookup;
-            return newLookup;
+            // Case 3: Remove Last (newLen === oldLen - 1)
+            // e.g. User deleted the last workout
+            if (newLen === oldLen - 1 && newLen > 0 &&
+                 (sessions[0] === this._lastSessions[0] && sessions[newLen - 1] === this._lastSessions[newLen - 1])) {
+
+                 const newLookup = this._cloneLookup(this._lastLookup);
+                 this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+
+                 this._cache.set(sessions, newLookup);
+                 this._lastSessions = sessions;
+                 this._lastLookup = newLookup;
+                 return newLookup;
+            }
+
+            // Case 4: Remove Last to Empty (1 -> 0)
+            if (newLen === 0 && oldLen === 1) {
+                 const newLookup = new Map();
+                 this._cache.set(sessions, newLookup);
+                 this._lastSessions = sessions;
+                 this._lastLookup = newLookup;
+                 return newLookup;
+            }
         }
 
         // Optimization: Iterate backwards and stop early once we found data for all current exercises.
