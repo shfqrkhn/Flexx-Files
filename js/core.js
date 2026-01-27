@@ -762,6 +762,21 @@ export const Calculator = {
         // Normal progression: add weight on success
         const last = this.getLastExercise(exerciseId, sessions);
         if (!last) return CONST.OLYMPIC_BAR_WEIGHT_LBS;
+
+        // Check if coming out of a deload week
+        if (sessions.length > 0) {
+            const lastSession = sessions[sessions.length - 1];
+            const lastWeek = Math.ceil(lastSession.sessionNumber / CONST.SESSIONS_PER_WEEK);
+
+            // If previous session was a deload week, resume from pre-deload weight
+            if (lastWeek % CONST.DELOAD_WEEK_INTERVAL === 0) {
+                const preDeloadEx = this.getLastNonDeloadExercise(exerciseId, sessions);
+                if (preDeloadEx) {
+                    return preDeloadEx.completed ? preDeloadEx.weight + CONST.WEIGHT_INCREMENT_LBS : preDeloadEx.weight;
+                }
+            }
+        }
+
         return last.completed ? last.weight + CONST.WEIGHT_INCREMENT_LBS : last.weight;
     },
 
@@ -787,6 +802,18 @@ export const Calculator = {
         const cache = this._ensureCache(sessions);
         const entry = cache.get(exerciseId);
         return entry ? entry.lastCompleted : null;
+    },
+
+    getLastNonDeloadExercise(exerciseId, sessions) {
+        for (let i = sessions.length - 1; i >= 0; i--) {
+            const s = sessions[i];
+            const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
+            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
+
+            const ex = s.exercises.find(e => e.id === exerciseId && !e.skipped && !e.usingAlternative);
+            if (ex) return ex;
+        }
+        return null;
     },
 
     getPlateLoad(weight) {
