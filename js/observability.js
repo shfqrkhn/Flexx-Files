@@ -127,22 +127,36 @@ const Logger = {
 
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
-            const safeEntry = JSON.parse(JSON.stringify(logEntry));
+            // Optimization: Manual shallow copy instead of expensive JSON.parse(JSON.stringify)
+            const safeEntry = {
+                level: logEntry.level,
+                message: Sanitizer.sanitizeString(logEntry.message),
+                timestamp: logEntry.timestamp,
+                url: logEntry.url,
+                userAgent: logEntry.userAgent
+            };
 
-            // Sanitize string properties to prevent stored XSS
-            safeEntry.message = Sanitizer.sanitizeString(safeEntry.message);
-            if (safeEntry.context) {
-                if (safeEntry.context.stack) {
-                    delete safeEntry.context.stack;
-                }
-                if (safeEntry.context.error && typeof safeEntry.context.error === 'object') {
-                    if (safeEntry.context.error.stack) delete safeEntry.context.error.stack;
-                }
-                for (const key in safeEntry.context) {
-                    if (typeof safeEntry.context[key] === 'string') {
-                        safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);
+            if (logEntry.context) {
+                const safeContext = {};
+                for (const key in logEntry.context) {
+                    if (key === 'stack') continue;
+
+                    const value = logEntry.context[key];
+
+                    if (key === 'error' && value && typeof value === 'object') {
+                        const safeError = {};
+                        for (const errKey in value) {
+                            if (errKey === 'stack') continue;
+                            safeError[errKey] = value[errKey];
+                        }
+                        safeContext[key] = safeError;
+                    } else if (typeof value === 'string') {
+                        safeContext[key] = Sanitizer.sanitizeString(value);
+                    } else {
+                        safeContext[key] = value;
                     }
                 }
+                safeEntry.context = safeContext;
             }
 
             this.errorCache.push(safeEntry);
