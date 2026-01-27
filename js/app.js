@@ -266,6 +266,13 @@ function renderLifting(c) {
                 const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
+
+                // Optimization: Use for loop to avoid garbage collection pressure from Array.from
+                let setButtonsHtml = '';
+                for (let i = 0; i < ex.sets; i++) {
+                    setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
+                }
+
                 return `
                 <div class="card" id="card-${ex.id}">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
@@ -283,7 +290,7 @@ function renderLifting(c) {
                     </div>
                     <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
                     <div class="set-group" role="group" aria-label="Sets for ${name}">
-                        ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
+                        ${setButtonsHtml}
                     </div>
                     <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs">Alternatives</summary>
