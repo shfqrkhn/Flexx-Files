@@ -217,14 +217,9 @@ function renderRecovery(c) {
 }
 
 function renderWarmup(c) {
-    c.innerHTML = `
-        <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
-                <h1>Warmup</h1>
-                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
-            </div>
-            <div class="card">
-        ${WARMUP.map(w => `
+    let warmupHtml = '';
+    for (const w of WARMUP) {
+        warmupHtml += `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
@@ -239,13 +234,71 @@ function renderWarmup(c) {
                         ${w.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
                     </select>
                 </details>
-            </div>`).join('')}
+            </div>`;
+    }
+
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
+        ${warmupHtml}
         </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
 }
 
 function renderLifting(c) {
     const sessions = Storage.getSessions();
     const isDeload = Calculator.isDeloadWeek(sessions);
+
+    let exercisesHtml = '';
+    for (const ex of EXERCISES) {
+        // Check state first for persistence
+        const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+        const hasAlt = activeEx?.usingAlternative;
+        const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
+        const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
+
+        const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
+        const last = Calculator.getLastCompletedExercise(ex.id, sessions);
+        const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
+
+        // Optimization: Use for loop to avoid garbage collection pressure from Array.from
+        let setButtonsHtml = '';
+        for (let i = 0; i < ex.sets; i++) {
+            setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
+        }
+
+        exercisesHtml += `
+        <div class="card" id="card-${ex.id}">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
+                <div>
+                    <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
+                    <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
+                    <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
+                </div>
+                <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
+            </div>
+            <div class="stepper-control">
+                <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
+                <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${name}">
+                <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${name}">+</button>
+            </div>
+            <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
+            <div class="set-group" role="group" aria-label="Sets for ${name}">
+                ${setButtonsHtml}
+            </div>
+            <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+                <summary class="text-xs">Alternatives</summary>
+                <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none" aria-label="Select alternative for ${ex.name}">
+                    <option value="">${ex.name}</option>
+                    ${ex.alternatives.map(a=>`<option value="${a}" ${hasAlt && activeEx.altName === a ? 'selected' : ''}>${a}</option>`).join('')}
+                </select>
+            </details>
+        </div>`;
+    }
+
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
@@ -256,51 +309,7 @@ function renderLifting(c) {
                 </div>
             </div>
             <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
-            ${EXERCISES.map(ex => {
-                // Check state first for persistence
-                const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
-                const hasAlt = activeEx?.usingAlternative;
-                const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
-                const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
-
-                const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
-                const last = Calculator.getLastCompletedExercise(ex.id, sessions);
-                const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
-
-                // Optimization: Use for loop to avoid garbage collection pressure from Array.from
-                let setButtonsHtml = '';
-                for (let i = 0; i < ex.sets; i++) {
-                    setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
-                }
-
-                return `
-                <div class="card" id="card-${ex.id}">
-                    <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
-                        <div>
-                            <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
-                            <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
-                            <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
-                        </div>
-                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
-                    </div>
-                    <div class="stepper-control">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
-                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${name}">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${name}">+</button>
-                    </div>
-                    <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
-                    <div class="set-group" role="group" aria-label="Sets for ${name}">
-                        ${setButtonsHtml}
-                    </div>
-                    <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs">Alternatives</summary>
-                        <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none" aria-label="Select alternative for ${ex.name}">
-                            <option value="">${ex.name}</option>
-                            ${ex.alternatives.map(a=>`<option value="${a}" ${hasAlt && activeEx.altName === a ? 'selected' : ''}>${a}</option>`).join('')}
-                        </select>
-                    </details>
-                </div>`;
-            }).join('')}
+            ${exercisesHtml}
             <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="Proceed to cardio phase">Next: Cardio</button>
         </div>`;
 }
@@ -317,24 +326,29 @@ function renderCardio(c) {
 }
 
 function renderDecompress(c) {
+    let decompressHtml = '';
+    for (const d of DECOMPRESSION) {
+        decompressHtml += `
+            <div class="card">
+                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
+                    <h3 id="name-${d.id}">${d.name}</h3>
+                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(d.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
+                </div>
+                ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
+                <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
+                    <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
+                        <option value="">Default</option>
+                        ${d.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
+                    </select>
+                </details>
+            </div>`;
+    }
+
     c.innerHTML = `
         <div class="container"><h1>Decompress</h1>
-            ${DECOMPRESSION.map(d => `
-                <div class="card">
-                    <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                        <h3 id="name-${d.id}">${d.name}</h3>
-                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(d.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${d.name}">🎥</a>
-                    </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}"><span>Completed</span></label>
-                    <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
-                            <option value="">Default</option>
-                            ${d.alternatives.map(a => `<option value="${a}">${a}</option>`).join('')}
-                        </select>
-                    </details>
-                </div>`).join('')}
+            ${decompressHtml}
             <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
