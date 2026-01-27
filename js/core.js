@@ -463,12 +463,12 @@ export const Calculator = {
             sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
 
             const newLookup = new Map();
-            // Shallow clone entries, deep clone mutable 'recent' arrays
+            // Shallow clone entries, reuse 'recent' arrays (copy-on-write)
             for (const [key, val] of this._lastLookup) {
                 newLookup.set(key, {
                     last: val.last,
                     lastCompleted: val.lastCompleted,
-                    recent: [...val.recent]
+                    recent: val.recent
                 });
             }
 
@@ -481,6 +481,12 @@ export const Calculator = {
                     newLookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
                 }
                 const entry = newLookup.get(ex.id);
+
+                // Copy-on-write for 'recent' if shared
+                const lastEntry = this._lastLookup.get(ex.id);
+                if (lastEntry && entry.recent === lastEntry.recent) {
+                    entry.recent = [...entry.recent];
+                }
 
                 // Add to recent history
                 // Since 'recent' is ordered [newest, ..., oldest], we unshift.
