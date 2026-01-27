@@ -260,7 +260,7 @@ function renderLifting(c) {
                 // Check state first for persistence
                 const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
                 const hasAlt = activeEx?.usingAlternative;
-                const name = hasAlt ? activeEx.altName : ex.name;
+                const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
                 const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
 
                 const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
