@@ -302,17 +302,20 @@ export const Storage = {
 
     deleteSession(id) {
         try {
-            let sessions = this.getSessions();
-            const beforeCount = sessions.length;
-            sessions = sessions.filter(s => s.id !== id);
+            const sessions = this.getSessions();
+            const index = sessions.findIndex(s => s.id === id);
 
-            if (sessions.length === beforeCount) {
+            if (index === -1) {
                 console.warn(`Session ${id} not found`);
                 return false;
             }
 
-            this._sessionCache = sessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            // Optimization: Create new array via splice to avoid O(N) filter callbacks
+            const newSessions = [...sessions];
+            newSessions.splice(index, 1);
+
+            this._sessionCache = newSessions; // Update cache
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
             return true;
         } catch (e) {
             console.error('Failed to delete session:', e);
