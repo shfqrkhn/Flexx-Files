@@ -170,6 +170,7 @@ export const Sanitizer = {
             const dangerousProtocols = ['javascript', 'data', 'vbscript', 'file', 'about'];
             if (dangerousProtocols.includes(protocol)) {
                 Logger.warn('Dangerous URL protocol blocked', { url: normalized.substring(0, 50), protocol });
+                AuditLog.log('xss_attempt', { url: normalized.substring(0, 50), protocol });
                 return '#';
             }
 
@@ -179,6 +180,7 @@ export const Sanitizer = {
             // Only allow http, https protocols (double-check after parsing)
             if (!['http:', 'https:'].includes(parsed.protocol)) {
                 Logger.warn('Unsafe URL protocol detected', { url: normalized.substring(0, 50), protocol: parsed.protocol });
+                AuditLog.log('xss_attempt', { url: normalized.substring(0, 50), protocol: parsed.protocol });
                 return '#';
             }
 
@@ -202,30 +204,35 @@ export const Validator = {
 
         if (missing.length > 0) {
             Logger.error('Invalid session: missing fields', { missing });
+            AuditLog.log('failed_validation', { type: 'session', missing });
             return { valid: false, errors: [`Missing fields: ${missing.join(', ')}`] };
         }
 
         // Validate ID format (UUID)
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.id)) {
             Logger.error('Invalid session: bad ID format', { id: session.id });
+            AuditLog.log('failed_validation', { type: 'session', error: 'bad_id', id: session.id });
             return { valid: false, errors: ['Invalid session ID format'] };
         }
 
         // Validate date
         if (isNaN(new Date(session.date).getTime())) {
             Logger.error('Invalid session: bad date', { date: session.date });
+            AuditLog.log('failed_validation', { type: 'session', error: 'bad_date', date: session.date });
             return { valid: false, errors: ['Invalid date format'] };
         }
 
         // Validate recovery status
         if (!Object.values(RECOVERY_STATES).includes(session.recoveryStatus)) {
             Logger.error('Invalid session: bad recovery status', { status: session.recoveryStatus });
+            AuditLog.log('failed_validation', { type: 'session', error: 'bad_recovery', status: session.recoveryStatus });
             return { valid: false, errors: ['Invalid recovery status'] };
         }
 
         // Validate exercises array
         if (!Array.isArray(session.exercises)) {
             Logger.error('Invalid session: exercises not an array');
+            AuditLog.log('failed_validation', { type: 'session', error: 'exercises_not_array' });
             return { valid: false, errors: ['Exercises must be an array'] };
         }
 
@@ -234,6 +241,7 @@ export const Validator = {
             const result = this.validateExercise(exercise);
             if (!result.valid) {
                 Logger.error('Invalid session: invalid exercise', { index, errors: result.errors });
+                AuditLog.log('failed_validation', { type: 'session', error: 'invalid_exercise', index, details: result.errors });
                 return {
                     valid: false,
                     errors: [`Exercise ${index + 1}: ${result.errors.join(', ')}`]
@@ -334,6 +342,7 @@ export const Validator = {
      */
     validateImportData(data) {
         if (!data || typeof data !== 'object') {
+            AuditLog.log('failed_validation', { type: 'import', error: 'invalid_format' });
             return { valid: false, errors: ['Invalid data format'] };
         }
 
@@ -341,6 +350,7 @@ export const Validator = {
         const sessions = Array.isArray(data) ? data : data.sessions;
 
         if (!Array.isArray(sessions)) {
+            AuditLog.log('failed_validation', { type: 'import', error: 'missing_sessions_array' });
             return { valid: false, errors: ['Data must contain a sessions array'] };
         }
 
