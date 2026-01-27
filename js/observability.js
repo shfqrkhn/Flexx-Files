@@ -65,6 +65,7 @@ const Logger = {
     level: LOG_LEVELS.INFO,
     logs: [],
     maxLogs: 500,
+    errorCache: null,
 
     setLevel(level) {
         this.level = LOG_LEVELS[level] || LOG_LEVELS.INFO;
@@ -109,8 +110,21 @@ const Logger = {
         }
     },
 
+    _ensureErrorCache() {
+        if (this.errorCache === null) {
+            try {
+                this.errorCache = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
+            } catch (e) {
+                console.error('Failed to load error cache:', e);
+                this.errorCache = [];
+            }
+        }
+    },
+
     _persistError(logEntry) {
         try {
+            this._ensureErrorCache();
+
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
             const safeEntry = JSON.parse(JSON.stringify(logEntry));
@@ -131,13 +145,12 @@ const Logger = {
                 }
             }
 
-            const errors = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
-            errors.push(safeEntry);
+            this.errorCache.push(safeEntry);
             // Keep only last 50 errors
-            if (errors.length > 50) {
-                errors.shift();
+            if (this.errorCache.length > 50) {
+                this.errorCache.shift();
             }
-            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(errors));
+            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
         } catch (e) {
             console.error('Failed to persist error:', e);
         }
@@ -155,7 +168,8 @@ const Logger = {
 
     getErrors() {
         try {
-            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
+            this._ensureErrorCache();
+            return [...this.errorCache];
         } catch (e) {
             return [];
         }
@@ -163,6 +177,7 @@ const Logger = {
 
     clearErrors() {
         localStorage.removeItem(`${STORAGE_PREFIX}errors`);
+        this.errorCache = [];
     },
 
     exportLogs() {
