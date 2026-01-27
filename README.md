@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.12 (Palette Update)   
+**Version:** 3.9.13 (Performance & Security)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -79,7 +79,7 @@ foreach ($File in $Files) {
 New-Item -Path "$ProjectName\assets\icon-192.png" -ItemType File -Force | Out-Null
 New-Item -Path "$ProjectName\assets\icon-512.png" -ItemType File -Force | Out-Null
 
-Write-Host "✅ Flexx Files v3.8 Structure Created." -ForegroundColor Cyan
+Write-Host "✅ Flexx Files v3.9.13 Structure Created." -ForegroundColor Cyan
 ```
 
 ### C. Deployment
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.12';
+export const APP_VERSION = '3.9.13';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -907,7 +907,6 @@ export const ERROR_MESSAGES = {
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };
-
 ```
 
 ## js/core.js
@@ -930,6 +929,7 @@ export const Storage = {
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
+    _pendingWrite: null,
     _isCorrupted: false,
 
     /**
@@ -1196,17 +1196,15 @@ export const Storage = {
 
             // Update cache and storage with the new array
             this._sessionCache = newSessions;
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
 
-            // Commit transaction
-            if (!this.Transaction.commit()) {
-                throw new Error('Transaction commit failed');
-            }
+            // Optimization: Non-blocking I/O
+            // Defer strict persistence to allow UI thread to unblock immediately
+            this.schedulePersistence();
 
-            // Clear draft after successful save
+            // Clear draft after successful save (optimistic)
             this.clearDraft();
 
-            console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
+            console.log('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {
             console.error('Failed to save session:', e);
@@ -1219,17 +1217,20 @@ export const Storage = {
 
     deleteSession(id) {
         try {
-            let sessions = this.getSessions();
-            const beforeCount = sessions.length;
-            sessions = sessions.filter(s => s.id !== id);
+            const sessions = this.getSessions();
+            const index = sessions.findIndex(s => s.id === id);
 
-            if (sessions.length === beforeCount) {
+            if (index === -1) {
                 console.warn(`Session ${id} not found`);
                 return false;
             }
 
-            this._sessionCache = sessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            // Optimization: Create new array via splice to avoid O(N) filter callbacks
+            const newSessions = [...sessions];
+            newSessions.splice(index, 1);
+
+            this._sessionCache = newSessions; // Update cache
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
             return true;
         } catch (e) {
             console.error('Failed to delete session:', e);
@@ -1308,6 +1309,39 @@ export const Storage = {
         }
     },
 
+    schedulePersistence() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+        }
+        // Defer to next tick to allow UI update
+        this._pendingWrite = setTimeout(() => {
+            this.flushPersistence();
+        }, 0);
+    },
+
+    flushPersistence() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+
+        if (!this._sessionCache) return;
+        try {
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(this._sessionCache));
+
+            // Commit transaction if in progress
+            if (this.Transaction.inProgress) {
+                this.Transaction.commit();
+            }
+        } catch (e) {
+            console.error('Persistence failed:', e);
+            if (this.Transaction.inProgress) {
+                this.Transaction.rollback();
+            }
+        }
+        this._pendingWrite = null;
+    },
+
     reset() {
         // Sentinel: Only clear Flexx Files data, preserving other apps on same origin
         const prefix = CONST.STORAGE_PREFIX || 'flexx_';
@@ -1331,9 +1365,60 @@ export const Storage = {
 export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
+    _lastSessions: null,
+    _lastLookup: null,
 
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
+
+        // Optimization: Check for incremental update (Append)
+        // Detect if this session array is a direct append to the last processed array
+        if (this._lastSessions && this._lastLookup &&
+            sessions.length === this._lastSessions.length + 1 &&
+            sessions[0] === this._lastSessions[0] &&
+            sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
+
+            const newLookup = new Map();
+            // Shallow clone entries, deep clone mutable 'recent' arrays
+            for (const [key, val] of this._lastLookup) {
+                newLookup.set(key, {
+                    last: val.last,
+                    lastCompleted: val.lastCompleted,
+                    recent: [...val.recent]
+                });
+            }
+
+            // Process only the new session (at the end)
+            const session = sessions[sessions.length - 1];
+            for (const ex of session.exercises) {
+                if (ex.skipped || ex.usingAlternative) continue;
+
+                if (!newLookup.has(ex.id)) {
+                    newLookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+                }
+                const entry = newLookup.get(ex.id);
+
+                // Add to recent history
+                // Since 'recent' is ordered [newest, ..., oldest], we unshift.
+                entry.recent.unshift(ex);
+                if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
+                    entry.recent.pop();
+                }
+
+                // Update last (this is the newest)
+                entry.last = ex;
+
+                // Update lastCompleted
+                if (ex.completed) {
+                    entry.lastCompleted = ex;
+                }
+            }
+
+            this._cache.set(sessions, newLookup);
+            this._lastSessions = sessions;
+            this._lastLookup = newLookup;
+            return newLookup;
+        }
 
         // Optimization: Iterate backwards and stop early once we found data for all current exercises.
         // NOTE: This assumes we primarily care about exercises in the current configuration (EXERCISES).
@@ -1392,6 +1477,8 @@ export const Calculator = {
         }
 
         this._cache.set(sessions, lookup);
+        this._lastSessions = sessions;
+        this._lastLookup = lookup;
         return lookup;
     },
 
@@ -1792,12 +1879,19 @@ function renderLifting(c) {
                 // Check state first for persistence
                 const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
                 const hasAlt = activeEx?.usingAlternative;
-                const name = hasAlt ? activeEx.altName : ex.name;
+                const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
                 const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
 
                 const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
                 const last = Calculator.getLastCompletedExercise(ex.id, sessions);
                 const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
+
+                // Optimization: Use for loop to avoid garbage collection pressure from Array.from
+                let setButtonsHtml = '';
+                for (let i = 0; i < ex.sets; i++) {
+                    setButtonsHtml += `<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`;
+                }
+
                 return `
                 <div class="card" id="card-${ex.id}">
                     <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
@@ -1815,7 +1909,7 @@ function renderLifting(c) {
                     </div>
                     <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
                     <div class="set-group" role="group" aria-label="Sets for ${name}">
-                        ${Array.from({length:ex.sets},(_,i)=>`<button type="button" class="set-btn" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="false">${i+1}</button>`).join('')}
+                        ${setButtonsHtml}
                     </div>
                     <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                         <summary class="text-xs">Alternatives</summary>
@@ -2310,38 +2404,40 @@ const ChartCache = {
     getData(exerciseId) {
         const sessions = Storage.getSessions();
         if (!this._cache.has(sessions)) {
-            this._cache.set(sessions, new Map());
-        }
-        const sessionCache = this._cache.get(sessions);
+            // Optimization: Index ALL exercises in one pass O(N)
+            // This prevents re-scanning the session history for every chart switch
+            const index = new Map();
 
-        if (sessionCache.has(exerciseId)) {
-            return sessionCache.get(exerciseId);
-        }
+            for (let i = 0; i < sessions.length; i++) {
+                const s = sessions[i];
+                if (!s.exercises) continue;
 
-        // Optimization: Single pass O(N) instead of filter/map chaining O(3N)
-        const data = [];
-        let minVal = Infinity;
-        let maxVal = -Infinity;
+                for (let j = 0; j < s.exercises.length; j++) {
+                    const ex = s.exercises[j];
 
-        for (let i = 0; i < sessions.length; i++) {
-            const exercises = sessions[i].exercises;
-            for (let j = 0; j < exercises.length; j++) {
-                const ex = exercises[j];
-                if (ex.id === exerciseId) {
-                    if (!ex.usingAlternative) {
-                        const v = ex.weight;
-                        data.push({d: new Date(sessions[i].date), v});
-                        if (v < minVal) minVal = v;
-                        if (v > maxVal) maxVal = v;
+                    if (!index.has(ex.id)) {
+                        index.set(ex.id, { data: [], minVal: Infinity, maxVal: -Infinity });
                     }
-                    break; // Stop looking in this session
+
+                    if (!ex.usingAlternative) {
+                        const entry = index.get(ex.id);
+                        const v = ex.weight;
+                        entry.data.push({ d: new Date(s.date), v });
+                        if (v < entry.minVal) entry.minVal = v;
+                        if (v > entry.maxVal) entry.maxVal = v;
+                    }
                 }
             }
+            this._cache.set(sessions, index);
         }
 
-        const result = { data, minVal, maxVal };
-        sessionCache.set(exerciseId, result);
-        return result;
+        const sessionCache = this._cache.get(sessions);
+
+        if (!sessionCache.has(exerciseId)) {
+            return { data: [], minVal: Infinity, maxVal: -Infinity };
+        }
+
+        return sessionCache.get(exerciseId);
     }
 };
 
@@ -2356,7 +2452,7 @@ window.drawChart = (id) => {
         const { data, minVal, maxVal } = ChartCache.getData(id);
 
         if (data.length < 2) {
-            div.innerHTML = '<p style="padding:1rem;color:#666">Need 2+ logs.</p>';
+            div.innerHTML = '<p style="padding:1rem;color:var(--text-secondary)">Need 2+ logs.</p>';
             return;
         }
 
@@ -2531,6 +2627,8 @@ if (mainContent) {
     // 11. Clean up resources on page unload
     window.addEventListener('beforeunload', () => {
         clearInterval(draftAutoSaveInterval);
+        // Flush any pending session writes
+        Storage.flushPersistence();
         // Final draft save before unload
         if (State.activeSession) {
             Storage.saveDraft(State.activeSession);
@@ -2616,6 +2714,7 @@ const Logger = {
     level: LOG_LEVELS.INFO,
     logs: [],
     maxLogs: 500,
+    errorCache: null,
 
     setLevel(level) {
         this.level = LOG_LEVELS[level] || LOG_LEVELS.INFO;
@@ -2660,8 +2759,21 @@ const Logger = {
         }
     },
 
+    _ensureErrorCache() {
+        if (this.errorCache === null) {
+            try {
+                this.errorCache = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
+            } catch (e) {
+                console.error('Failed to load error cache:', e);
+                this.errorCache = [];
+            }
+        }
+    },
+
     _persistError(logEntry) {
         try {
+            this._ensureErrorCache();
+
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
             const safeEntry = JSON.parse(JSON.stringify(logEntry));
@@ -2682,13 +2794,12 @@ const Logger = {
                 }
             }
 
-            const errors = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
-            errors.push(safeEntry);
+            this.errorCache.push(safeEntry);
             // Keep only last 50 errors
-            if (errors.length > 50) {
-                errors.shift();
+            if (this.errorCache.length > 50) {
+                this.errorCache.shift();
             }
-            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(errors));
+            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
         } catch (e) {
             console.error('Failed to persist error:', e);
         }
@@ -2706,7 +2817,8 @@ const Logger = {
 
     getErrors() {
         try {
-            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
+            this._ensureErrorCache();
+            return [...this.errorCache];
         } catch (e) {
             return [];
         }
@@ -2714,6 +2826,7 @@ const Logger = {
 
     clearErrors() {
         localStorage.removeItem(`${STORAGE_PREFIX}errors`);
+        this.errorCache = [];
     },
 
     exportLogs() {
@@ -2894,7 +3007,6 @@ export const Observability = {
 
 // Export individual modules for direct access
 export { Logger, Metrics, Analytics, ErrorTracker, PerformanceMonitor, BatteryMonitor };
-
 ```
 
 ## js/accessibility.js
@@ -3310,7 +3422,6 @@ export const Accessibility = {
 };
 
 export default Accessibility;
-
 ```
 
 ## js/security.js
@@ -3710,43 +3821,6 @@ export const CSP = {
     }
 };
 
-// === RATE LIMITING ===
-export const RateLimiter = {
-    attempts: new Map(),
-
-    /**
-     * Check if action is rate limited
-     * @param {string} action - Action identifier
-     * @param {number} maxAttempts - Maximum attempts allowed
-     * @param {number} windowMs - Time window in milliseconds
-     */
-    check(action, maxAttempts = 5, windowMs = 60000) {
-        const now = Date.now();
-        const history = this.attempts.get(action) || [];
-
-        // Filter attempts within time window
-        const recentAttempts = history.filter(time => now - time < windowMs);
-
-        if (recentAttempts.length >= maxAttempts) {
-            Logger.warn('Rate limit exceeded', { action, attempts: recentAttempts.length });
-            return false;
-        }
-
-        // Add current attempt
-        recentAttempts.push(now);
-        this.attempts.set(action, recentAttempts);
-
-        return true;
-    },
-
-    /**
-     * Reset rate limit for action
-     */
-    reset(action) {
-        this.attempts.delete(action);
-    }
-};
-
 // === INTEGRITY CHECKER ===
 export const IntegrityChecker = {
     /**
@@ -3797,6 +3871,7 @@ export const IntegrityChecker = {
 // === AUDIT LOG ===
 export const AuditLog = {
     logs: [],
+    persistedLogs: null,
     maxLogs: 100,
 
     /**
@@ -3837,15 +3912,19 @@ export const AuditLog = {
 
     persist(entry) {
         try {
-            const audits = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
-            audits.push(entry);
-
-            // Keep only last 50 critical events
-            if (audits.length > 50) {
-                audits.shift();
+            // Initialize cache if needed
+            if (!this.persistedLogs) {
+                this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
             }
 
-            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(audits));
+            this.persistedLogs.push(entry);
+
+            // Keep only last 50 critical events
+            if (this.persistedLogs.length > 50) {
+                this.persistedLogs.shift();
+            }
+
+            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
         }
@@ -3857,7 +3936,11 @@ export const AuditLog = {
 
     getPersistedLogs() {
         try {
-            return JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
+            if (this.persistedLogs) {
+                return [...this.persistedLogs];
+            }
+            this.persistedLogs = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}audit_log`) || '[]');
+            return [...this.persistedLogs];
         } catch (e) {
             return [];
         }
@@ -3865,6 +3948,7 @@ export const AuditLog = {
 
     clear() {
         this.logs = [];
+        this.persistedLogs = null;
         localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
     }
 };
@@ -3881,13 +3965,11 @@ export const Security = {
     Sanitizer,
     Validator,
     CSP,
-    RateLimiter,
     IntegrityChecker,
     AuditLog
 };
 
 export default Security;
-
 ```
 
 ## js/i18n.js
@@ -4290,7 +4372,6 @@ export default {
     NumberFormatter,
     Timezone
 };
-
 ```
 
 ## sw.js
@@ -4298,7 +4379,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.12';
+const CACHE_NAME = 'flexx-v3.9.13';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
