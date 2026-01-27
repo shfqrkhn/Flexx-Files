@@ -282,7 +282,7 @@ export const Storage = {
             // Update cache and storage with the new array
             this._sessionCache = newSessions;
 
-            // Optimization: Non-blocking I/O
+            // Optimization: Non-blocking I/O (Async Persistence)
             // Defer strict persistence to allow UI thread to unblock immediately
             this.schedulePersistence();
 
