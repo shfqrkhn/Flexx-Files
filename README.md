@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.15';
+export const APP_VERSION = '3.9.16';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -1226,11 +1226,13 @@ export const Storage = {
             }
 
             // Optimization: Create new array via splice to avoid O(N) filter callbacks
-            const newSessions = [...sessions];
+            const newSessions = sessions.slice();
             newSessions.splice(index, 1);
 
             this._sessionCache = newSessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
+
+            // Optimization: Non-blocking I/O
+            this.schedulePersistence();
             return true;
         } catch (e) {
             console.error('Failed to delete session:', e);
@@ -4605,7 +4607,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.15';
+const CACHE_NAME = 'flexx-v3.9.16';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
