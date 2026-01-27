@@ -13,6 +13,7 @@ export const Storage = {
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
+    _pendingWrite: null,
     _isCorrupted: false,
 
     /**
@@ -279,17 +280,15 @@ export const Storage = {
 
             // Update cache and storage with the new array
             this._sessionCache = newSessions;
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
 
-            // Commit transaction
-            if (!this.Transaction.commit()) {
-                throw new Error('Transaction commit failed');
-            }
+            // Optimization: Non-blocking I/O
+            // Defer strict persistence to allow UI thread to unblock immediately
+            this.schedulePersistence();
 
-            // Clear draft after successful save
+            // Clear draft after successful save (optimistic)
             this.clearDraft();
 
-            console.log('Session saved successfully', { id: session.id, number: session.sessionNumber });
+            console.log('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {
             console.error('Failed to save session:', e);
@@ -389,6 +388,39 @@ export const Storage = {
             console.error('Import error:', e);
             alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
         }
+    },
+
+    schedulePersistence() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+        }
+        // Defer to next tick to allow UI update
+        this._pendingWrite = setTimeout(() => {
+            this.flushPersistence();
+        }, 0);
+    },
+
+    flushPersistence() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+
+        if (!this._sessionCache) return;
+        try {
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(this._sessionCache));
+
+            // Commit transaction if in progress
+            if (this.Transaction.inProgress) {
+                this.Transaction.commit();
+            }
+        } catch (e) {
+            console.error('Persistence failed:', e);
+            if (this.Transaction.inProgress) {
+                this.Transaction.rollback();
+            }
+        }
+        this._pendingWrite = null;
     },
 
     reset() {
