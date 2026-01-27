@@ -414,9 +414,60 @@ export const Storage = {
 export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
+    _lastSessions: null,
+    _lastLookup: null,
 
     _ensureCache(sessions) {
         if (this._cache.has(sessions)) return this._cache.get(sessions);
+
+        // Optimization: Check for incremental update (Append)
+        // Detect if this session array is a direct append to the last processed array
+        if (this._lastSessions && this._lastLookup &&
+            sessions.length === this._lastSessions.length + 1 &&
+            sessions[0] === this._lastSessions[0] &&
+            sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
+
+            const newLookup = new Map();
+            // Shallow clone entries, deep clone mutable 'recent' arrays
+            for (const [key, val] of this._lastLookup) {
+                newLookup.set(key, {
+                    last: val.last,
+                    lastCompleted: val.lastCompleted,
+                    recent: [...val.recent]
+                });
+            }
+
+            // Process only the new session (at the end)
+            const session = sessions[sessions.length - 1];
+            for (const ex of session.exercises) {
+                if (ex.skipped || ex.usingAlternative) continue;
+
+                if (!newLookup.has(ex.id)) {
+                    newLookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+                }
+                const entry = newLookup.get(ex.id);
+
+                // Add to recent history
+                // Since 'recent' is ordered [newest, ..., oldest], we unshift.
+                entry.recent.unshift(ex);
+                if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
+                    entry.recent.pop();
+                }
+
+                // Update last (this is the newest)
+                entry.last = ex;
+
+                // Update lastCompleted
+                if (ex.completed) {
+                    entry.lastCompleted = ex;
+                }
+            }
+
+            this._cache.set(sessions, newLookup);
+            this._lastSessions = sessions;
+            this._lastLookup = newLookup;
+            return newLookup;
+        }
 
         // Optimization: Iterate backwards and stop early once we found data for all current exercises.
         // NOTE: This assumes we primarily care about exercises in the current configuration (EXERCISES).
@@ -475,6 +526,8 @@ export const Calculator = {
         }
 
         this._cache.set(sessions, lookup);
+        this._lastSessions = sessions;
+        this._lastLookup = lookup;
         return lookup;
     },
 
