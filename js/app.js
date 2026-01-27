@@ -229,7 +229,7 @@ function renderWarmup(c) {
             const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
             const isChecked = activeW ? activeW.completed : false;
             const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = altUsed || w.name;
+            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
             // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
             const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
@@ -346,7 +346,7 @@ function renderDecompress(c) {
                 const isChecked = activeD ? activeD.completed : false;
                 const val = activeD ? activeD.val : '';
                 const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = altUsed || d.name;
+                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
                 const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
 
                 return `
@@ -899,7 +899,7 @@ const ChartCache = {
         const newIndex = new Map();
         for (const [id, val] of oldIndex) {
             newIndex.set(id, {
-                data: [...val.data],
+                data: val.data, // Shared reference (Copy-On-Write)
                 minVal: val.minVal,
                 maxVal: val.maxVal
             });
@@ -918,6 +918,9 @@ const ChartCache = {
 
             if (!ex.usingAlternative) {
                 const entry = index.get(ex.id);
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const v = ex.weight;
                 entry.data.push({ d: new Date(session.date), v });
                 if (v < entry.minVal) entry.minVal = v;
@@ -938,6 +941,9 @@ const ChartCache = {
             const lastPoint = entry.data[entry.data.length - 1];
             // Compare timestamps
             if (new Date(session.date).getTime() === lastPoint.d.getTime()) {
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const popped = entry.data.pop();
 
                 if (popped.v === entry.minVal || popped.v === entry.maxVal) {
