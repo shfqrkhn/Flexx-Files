@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.22 (Optimization)
+**Version:** 3.9.23 (Refactor)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -880,6 +880,8 @@ export const DEBUG_REST_UNLOCK_HOURS = 73; // Backdating time for rest unlock (3
 // === UI TIMING ===
 export const CHART_RENDER_DELAY_MS = 100; // Delay before rendering chart to ensure DOM is ready
 export const TIMER_TICK_INTERVAL_MS = 1000; // Timer update frequency
+export const HISTORY_PAGINATION_LIMIT = 20; // Number of sessions to load per page
+export const CARDIO_TIMER_SECONDS = 300; // Default duration for cardio timer (5 mins)
 
 // === RECOVERY STATES ===
 export const RECOVERY_STATES = {
@@ -932,8 +934,6 @@ export const Storage = {
     _sessionCache: null,
     _pendingWrite: null,
     _pendingWriteType: null, // 'timeout' or 'idle'
-    _draftTimer: null,
-    _pendingDraft: null,
     _isCorrupted: false,
 
     /**
@@ -1009,38 +1009,14 @@ export const Storage = {
     /**
      * Save draft session for recovery
      */
-    saveDraft(session, force = false) {
+    saveDraft(session) {
         try {
-            if (force) {
-                if (this._draftTimer) clearTimeout(this._draftTimer);
-                localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
-                console.log('Draft saved (forced)', { sessionId: session.id });
-                return true;
-            }
-
-            this._pendingDraft = session;
-            if (this._draftTimer) clearTimeout(this._draftTimer);
-
-            this._draftTimer = setTimeout(() => {
-                this.flushDraft();
-            }, 500); // Debounce 500ms
-
+            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
+            console.log('Draft saved', { sessionId: session.id });
             return true;
         } catch (e) {
             console.error('Failed to save draft:', e);
             return false;
-        }
-    },
-
-    flushDraft() {
-        if (!this._pendingDraft) return;
-        try {
-            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(this._pendingDraft));
-            console.log('Draft saved (async)', { sessionId: this._pendingDraft.id });
-            this._pendingDraft = null;
-            this._draftTimer = null;
-        } catch (e) {
-            console.error('Failed to flush draft:', e);
         }
     },
 
@@ -1885,7 +1861,7 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
-import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
+import * as CONST from './constants.js';
 
 // Optimization: Create map for O(1) lookup once
 const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
@@ -1945,7 +1921,7 @@ const Modal = {
 };
 
 // === STATE & TOOLS ===
-const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: 20 };
+const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -1954,7 +1930,7 @@ const Haptics = {
 
 const Timer = {
     interval: null, endTime: null,
-    start(sec = 90) {
+    start(sec = CONST.DEFAULT_REST_TIMER_SECONDS) {
         if (this.interval) clearInterval(this.interval);
         this.endTime = Date.now() + (sec * 1000);
         const timerDock = document.getElementById('timer-dock');
@@ -2258,7 +2234,7 @@ function renderDecompress(c) {
                     <h3 id="name-${d.id}">${displayName}</h3>
                     <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
-                ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
                 <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
                 <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                     <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
@@ -2280,7 +2256,7 @@ function renderDecompress(c) {
 function renderHistory(c) {
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
-    const limit = State.historyLimit || 20;
+    const limit = State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT;
     const s = [];
     for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
         s.push(sessions[i]);
@@ -2374,7 +2350,7 @@ function renderSettings(c) {
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
             <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
-                v${APP_VERSION} (${STORAGE_VERSION})
+                v${CONST.APP_VERSION} (${CONST.STORAGE_VERSION})
             </div>
         </div>`;
 
@@ -2801,9 +2777,9 @@ window.skipRest = () => {
     State.forceRestSkip = true;
     render();
 };
-window.startCardio = () => Timer.start(300);
+window.startCardio = () => Timer.start(CONST.CARDIO_TIMER_SECONDS);
 window.loadMoreHistory = () => {
-    State.historyLimit = (State.historyLimit || 20) + 20;
+    State.historyLimit = (State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT) + CONST.HISTORY_PAGINATION_LIMIT;
     render();
 
     // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
@@ -2830,12 +2806,12 @@ window.imp = (el) => {
     if (!file) return;
 
     // Sentinel: DoS prevention - validate file size before reading
-    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    const maxSizeBytes = CONST.MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
         Modal.show({
             type: 'error',
             title: 'File Too Large',
-            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+            message: CONST.ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
         });
         el.value = ''; // Reset input
         return;
@@ -3057,7 +3033,7 @@ if (mainContent) {
 
     // 1. Initialize observability first (for logging other initializations)
     Observability.init();
-    Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
+    Logger.info(`🚀 Flexx Files v${CONST.APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
     Security.init(Logger);
@@ -3140,7 +3116,7 @@ if (mainContent) {
 
     // 8. Track app startup
     Analytics.track('app_start', {
-        version: APP_VERSION,
+        version: CONST.APP_VERSION,
         platform: navigator.platform,
         online: navigator.onLine
     });
@@ -3170,7 +3146,7 @@ if (mainContent) {
         Storage.flushPersistence();
         // Final draft save before unload
         if (State.activeSession) {
-            Storage.saveDraft(State.activeSession, true);
+            Storage.saveDraft(State.activeSession);
         }
     });
 
@@ -5063,7 +5039,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.22';
+const CACHE_NAME = 'flexx-v3.9.23';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',

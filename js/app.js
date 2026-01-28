@@ -4,7 +4,7 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
-import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
+import * as CONST from './constants.js';
 
 // Optimization: Create map for O(1) lookup once
 const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
@@ -64,7 +64,7 @@ const Modal = {
 };
 
 // === STATE & TOOLS ===
-const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: 20 };
+const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -73,7 +73,7 @@ const Haptics = {
 
 const Timer = {
     interval: null, endTime: null,
-    start(sec = 90) {
+    start(sec = CONST.DEFAULT_REST_TIMER_SECONDS) {
         if (this.interval) clearInterval(this.interval);
         this.endTime = Date.now() + (sec * 1000);
         const timerDock = document.getElementById('timer-dock');
@@ -399,7 +399,7 @@ function renderDecompress(c) {
 function renderHistory(c) {
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
-    const limit = State.historyLimit || 20;
+    const limit = State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT;
     const s = [];
     for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
         s.push(sessions[i]);
@@ -493,7 +493,7 @@ function renderSettings(c) {
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
             <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
-                v${APP_VERSION} (${STORAGE_VERSION})
+                v${CONST.APP_VERSION} (${CONST.STORAGE_VERSION})
             </div>
         </div>`;
 
@@ -920,9 +920,9 @@ window.skipRest = () => {
     State.forceRestSkip = true;
     render();
 };
-window.startCardio = () => Timer.start(300);
+window.startCardio = () => Timer.start(CONST.CARDIO_TIMER_SECONDS);
 window.loadMoreHistory = () => {
-    State.historyLimit = (State.historyLimit || 20) + 20;
+    State.historyLimit = (State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT) + CONST.HISTORY_PAGINATION_LIMIT;
     render();
 
     // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
@@ -949,12 +949,12 @@ window.imp = (el) => {
     if (!file) return;
 
     // Sentinel: DoS prevention - validate file size before reading
-    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    const maxSizeBytes = CONST.MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
         Modal.show({
             type: 'error',
             title: 'File Too Large',
-            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+            message: CONST.ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
         });
         el.value = ''; // Reset input
         return;
@@ -1176,7 +1176,7 @@ if (mainContent) {
 
     // 1. Initialize observability first (for logging other initializations)
     Observability.init();
-    Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
+    Logger.info(`🚀 Flexx Files v${CONST.APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
     Security.init(Logger);
@@ -1259,7 +1259,7 @@ if (mainContent) {
 
     // 8. Track app startup
     Analytics.track('app_start', {
-        version: APP_VERSION,
+        version: CONST.APP_VERSION,
         platform: navigator.platform,
         online: navigator.onLine
     });
