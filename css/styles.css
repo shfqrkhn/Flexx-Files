@@ -99,7 +99,8 @@ body.reduce-motion *::after {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Allow text selection for accessibility - only disable on interactive elements */
-button, .nav-item, .stepper-btn, .set-btn { user-select: none; touch-action: manipulation; }
+button, .nav-item, .stepper-btn, .set-btn, summary, label, a, input, select, textarea { touch-action: manipulation; }
+button, .nav-item, .stepper-btn, .set-btn, summary, label { user-select: none; }
 
 body {
     background: var(--bg-primary); color: var(--text-primary);

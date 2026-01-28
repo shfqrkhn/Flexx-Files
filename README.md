@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.18 (Bug Fixes)
+**Version:** 3.9.26 (Refactor)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -269,7 +269,8 @@ body.reduce-motion *::after {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Allow text selection for accessibility - only disable on interactive elements */
-button, .nav-item, .stepper-btn, .set-btn { user-select: none; touch-action: manipulation; }
+button, .nav-item, .stepper-btn, .set-btn, summary, label, a, input, select, textarea { touch-action: manipulation; }
+button, .nav-item, .stepper-btn, .set-btn, summary, label { user-select: none; }
 
 body {
     background: var(--bg-primary); color: var(--text-primary);
@@ -844,7 +845,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.18';
+export const APP_VERSION = '3.9.26';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -880,6 +881,8 @@ export const DEBUG_REST_UNLOCK_HOURS = 73; // Backdating time for rest unlock (3
 // === UI TIMING ===
 export const CHART_RENDER_DELAY_MS = 100; // Delay before rendering chart to ensure DOM is ready
 export const TIMER_TICK_INTERVAL_MS = 1000; // Timer update frequency
+export const HISTORY_PAGINATION_LIMIT = 20; // Number of sessions to load per page
+export const CARDIO_TIMER_SECONDS = 300; // Default duration for cardio timer (5 mins)
 
 // === RECOVERY STATES ===
 export const RECOVERY_STATES = {
@@ -907,6 +910,7 @@ export const ERROR_MESSAGES = {
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };
+
 ```
 
 ## js/core.js
@@ -917,6 +921,7 @@ export const ERROR_MESSAGES = {
 import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
 import { Validator as SecurityValidator, Sanitizer } from './security.js';
+import { Logger } from './observability.js';
 
 export const Storage = {
     KEYS: {
@@ -930,6 +935,7 @@ export const Storage = {
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
     _pendingWrite: null,
+    _pendingWriteType: null, // 'timeout' or 'idle'
     _isCorrupted: false,
 
     /**
@@ -942,7 +948,7 @@ export const Storage = {
 
         begin() {
             if (this.inProgress) {
-                console.warn('Transaction already in progress');
+                Logger.warn('Transaction already in progress');
                 return false;
             }
 
@@ -954,17 +960,17 @@ export const Storage = {
                 // We trust the application not to mutate cache objects in-place.
                 this.snapshot = Storage.getSessions();
                 this.inProgress = true;
-                console.log('Transaction started', { sessionCount: this.snapshot.length });
+                Logger.debug('Transaction started', { sessionCount: this.snapshot.length });
                 return true;
             } catch (e) {
-                console.error('Failed to begin transaction:', e);
+                Logger.error('Failed to begin transaction:', { error: e.message });
                 return false;
             }
         },
 
         commit() {
             if (!this.inProgress) {
-                console.warn('No transaction in progress');
+                Logger.warn('No transaction in progress');
                 return false;
             }
 
@@ -972,10 +978,10 @@ export const Storage = {
                 // Transaction successful, clear snapshot
                 this.snapshot = null;
                 this.inProgress = false;
-                console.log('Transaction committed');
+                Logger.debug('Transaction committed');
                 return true;
             } catch (e) {
-                console.error('Failed to commit transaction:', e);
+                Logger.error('Failed to commit transaction:', { error: e.message });
                 this.rollback();
                 return false;
             }
@@ -983,7 +989,7 @@ export const Storage = {
 
         rollback() {
             if (!this.inProgress || !this.snapshot) {
-                console.warn('No transaction to rollback');
+                Logger.warn('No transaction to rollback');
                 return false;
             }
 
@@ -993,10 +999,10 @@ export const Storage = {
                 Storage._sessionCache = null; // Invalidate cache
                 this.snapshot = null;
                 this.inProgress = false;
-                console.log('Transaction rolled back');
+                Logger.warn('Transaction rolled back');
                 return true;
             } catch (e) {
-                console.error('CRITICAL: Failed to rollback transaction:', e);
+                Logger.critical('Failed to rollback transaction:', { error: e.message });
                 return false;
             }
         }
@@ -1008,10 +1014,10 @@ export const Storage = {
     saveDraft(session) {
         try {
             localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
-            console.log('Draft saved', { sessionId: session.id });
+            Logger.debug('Draft saved', { sessionId: session.id });
             return true;
         } catch (e) {
-            console.error('Failed to save draft:', e);
+            Logger.error('Failed to save draft:', { error: e.message });
             return false;
         }
     },
@@ -1024,7 +1030,7 @@ export const Storage = {
             const draft = localStorage.getItem(this.KEYS.DRAFT);
             return draft ? JSON.parse(draft) : null;
         } catch (e) {
-            console.error('Failed to load draft:', e);
+            Logger.error('Failed to load draft:', { error: e.message });
             return null;
         }
     },
@@ -1035,10 +1041,10 @@ export const Storage = {
     clearDraft() {
         try {
             localStorage.removeItem(this.KEYS.DRAFT);
-            console.log('Draft cleared');
+            Logger.debug('Draft cleared');
             return true;
         } catch (e) {
-            console.error('Failed to clear draft:', e);
+            Logger.error('Failed to clear draft:', { error: e.message });
             return false;
         }
     },
@@ -1057,7 +1063,7 @@ export const Storage = {
 
     runMigrations() {
         const currentVersion = this.getCurrentMigrationVersion();
-        console.log(`Current migration version: ${currentVersion}`);
+        Logger.info(`Current migration version: ${currentVersion}`);
 
         // If we're already on the latest version, no migration needed
         if (currentVersion === CONST.STORAGE_VERSION) {
@@ -1076,9 +1082,9 @@ export const Storage = {
 
             // Update migration version after successful migration
             this.setMigrationVersion(CONST.STORAGE_VERSION);
-            console.log(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
+            Logger.info(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
         } catch (e) {
-            console.error('Migration failed:', e);
+            Logger.error('Migration failed:', { error: e.message });
             alert('Data migration failed. Your data is safe but may need manual export/import.');
         }
     },
@@ -1089,7 +1095,7 @@ export const Storage = {
      * This demonstrates the pattern for future migrations
      */
     migrateV3toV4() {
-        console.log('Running v3 -> v4 migration');
+        Logger.info('Running v3 -> v4 migration');
         const sessions = this.getSessions();
 
         // Example migration logic:
@@ -1103,7 +1109,7 @@ export const Storage = {
         });
 
         localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(migratedSessions));
-        console.log(`Migrated ${migratedSessions.length} sessions`);
+        Logger.info(`Migrated ${migratedSessions.length} sessions`);
     },
 
     getSessions() {
@@ -1116,7 +1122,7 @@ export const Storage = {
             this._sessionCache = Array.isArray(sessions) ? sessions : [];
             return this._sessionCache;
         } catch (e) {
-            console.error('Failed to load sessions:', e);
+            Logger.error('Failed to load sessions:', { error: e.message });
             // Sentinel: Flag corruption to prevent overwriting raw data later
             this._isCorrupted = true;
             // Return empty array so UI can still render partial state (e.g. empty history)
@@ -1132,14 +1138,14 @@ export const Storage = {
         // Sentinel: Prevent data loss if storage is corrupted
         if (this._isCorrupted) {
             const msg = 'Storage is corrupted. Cannot save to prevent data loss. Please export data immediately.';
-            console.error(msg);
+            Logger.critical(msg);
             alert(msg);
             throw new Error(msg);
         }
 
         // Start atomic transaction
         if (!this.Transaction.begin()) {
-            console.error('Could not start transaction for saveSession');
+            Logger.error('Could not start transaction for saveSession');
             throw new Error('Transaction failed to start');
         }
 
@@ -1148,7 +1154,7 @@ export const Storage = {
             const validation = SecurityValidator.validateSession(session);
             if (!validation.valid) {
                 const errorMsg = `Invalid session data: ${validation.errors.join(', ')}`;
-                console.error(errorMsg, { sessionId: session?.id });
+                Logger.error(errorMsg, { sessionId: session?.id });
                 throw new Error(errorMsg);
             }
 
@@ -1158,7 +1164,7 @@ export const Storage = {
             // If a session with this ID already exists, update it instead of creating a duplicate
             const existingIndex = sessions.findIndex(s => s.id === session.id);
             if (existingIndex !== -1) {
-                console.warn(`Session ${session.id} already exists. Updating instead of creating duplicate.`);
+                Logger.warn(`Session ${session.id} already exists. Updating instead of creating duplicate.`);
                 // Update existing session
                 session.sessionNumber = sessions[existingIndex].sessionNumber;
                 session.weekNumber = sessions[existingIndex].weekNumber;
@@ -1197,17 +1203,17 @@ export const Storage = {
             // Update cache and storage with the new array
             this._sessionCache = newSessions;
 
-            // Optimization: Non-blocking I/O
+            // Optimization: Non-blocking I/O (Async Persistence)
             // Defer strict persistence to allow UI thread to unblock immediately
             this.schedulePersistence();
 
             // Clear draft after successful save (optimistic)
             this.clearDraft();
 
-            console.log('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
+            Logger.info('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {
-            console.error('Failed to save session:', e);
+            Logger.error('Failed to save session:', { error: e.message });
             // Rollback transaction on error
             this.Transaction.rollback();
             alert('Failed to save workout. Please try exporting your data.');
@@ -1221,19 +1227,21 @@ export const Storage = {
             const index = sessions.findIndex(s => s.id === id);
 
             if (index === -1) {
-                console.warn(`Session ${id} not found`);
+                Logger.warn(`Session ${id} not found`);
                 return false;
             }
 
             // Optimization: Create new array via splice to avoid O(N) filter callbacks
-            const newSessions = [...sessions];
+            const newSessions = sessions.slice();
             newSessions.splice(index, 1);
 
             this._sessionCache = newSessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
+
+            // Optimization: Non-blocking I/O
+            this.schedulePersistence();
             return true;
         } catch (e) {
-            console.error('Failed to delete session:', e);
+            Logger.error('Failed to delete session:', { error: e.message });
             alert('Failed to delete session. Please try again.');
             return false;
         }
@@ -1256,7 +1264,7 @@ export const Storage = {
             a.click();
             URL.revokeObjectURL(a.href);
         } catch (e) {
-            console.error('Export error:', e);
+            Logger.error('Export error:', { error: e.message });
             alert(CONST.ERROR_MESSAGES.EXPORT_FAILED);
         }
     },
@@ -1275,7 +1283,7 @@ export const Storage = {
             a.download = `flexx-files-auto-${safeDate}.json`;
             a.click();
         } catch (e) {
-            console.error('Auto-export error:', e);
+            Logger.error('Auto-export error:', { error: e.message });
             // Don't alert for auto-export failures, just log
         }
     },
@@ -1288,7 +1296,7 @@ export const Storage = {
             const validation = SecurityValidator.validateImportData(data);
             if (!validation.valid) {
                 // SECURITY: Never expose validation details to user
-                console.error('Import validation failed', { errors: validation.errors });
+                Logger.error('Import validation failed', { errors: validation.errors });
                 alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
                 return;
             }
@@ -1304,25 +1312,44 @@ export const Storage = {
                 window.location.reload();
             }
         } catch (e) {
-            console.error('Import error:', e);
+            Logger.error('Import error:', { error: e.message });
             alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
         }
     },
 
     schedulePersistence() {
         if (this._pendingWrite) {
-            clearTimeout(this._pendingWrite);
+            if (this._pendingWriteType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(this._pendingWrite);
+            } else {
+                clearTimeout(this._pendingWrite);
+            }
         }
-        // Defer to next tick to allow UI update
-        this._pendingWrite = setTimeout(() => {
-            this.flushPersistence();
-        }, 0);
+
+        // Use requestIdleCallback if available for better non-blocking behavior
+        if (typeof window.requestIdleCallback === 'function') {
+            this._pendingWriteType = 'idle';
+            this._pendingWrite = window.requestIdleCallback(() => {
+                this.flushPersistence();
+            }, { timeout: 2000 }); // Force write after 2s if no idle time
+        } else {
+            this._pendingWriteType = 'timeout';
+            // Defer to next tick to allow UI update
+            this._pendingWrite = setTimeout(() => {
+                this.flushPersistence();
+            }, 0);
+        }
     },
 
     flushPersistence() {
         if (this._pendingWrite) {
-            clearTimeout(this._pendingWrite);
+            if (this._pendingWriteType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(this._pendingWrite);
+            } else {
+                clearTimeout(this._pendingWrite);
+            }
             this._pendingWrite = null;
+            this._pendingWriteType = null;
         }
 
         if (!this._sessionCache) return;
@@ -1334,7 +1361,7 @@ export const Storage = {
                 this.Transaction.commit();
             }
         } catch (e) {
-            console.error('Persistence failed:', e);
+            Logger.error('Persistence failed:', { error: e.message });
             if (this.Transaction.inProgress) {
                 this.Transaction.rollback();
             }
@@ -1368,56 +1395,219 @@ export const Calculator = {
     _lastSessions: null,
     _lastLookup: null,
 
-    _ensureCache(sessions) {
-        if (this._cache.has(sessions)) return this._cache.get(sessions);
+    _cloneLookup(lookup) {
+        const newLookup = new Map();
+        for (const [key, val] of lookup) {
+            newLookup.set(key, {
+                last: val.last,
+                lastCompleted: val.lastCompleted,
+                recent: [...val.recent] // Copy array to prevent shared mutation
+            });
+        }
+        return newLookup;
+    },
 
-        // Optimization: Check for incremental update (Append)
-        // Detect if this session array is a direct append to the last processed array
-        if (this._lastSessions && this._lastLookup &&
-            sessions.length === this._lastSessions.length + 1 &&
-            sessions[0] === this._lastSessions[0] &&
-            sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
+    _applySession(lookup, session) {
+        for (const ex of session.exercises) {
+            if (ex.skipped) continue;
 
-            const newLookup = new Map();
-            // Shallow clone entries, deep clone mutable 'recent' arrays
-            for (const [key, val] of this._lastLookup) {
-                newLookup.set(key, {
-                    last: val.last,
-                    lastCompleted: val.lastCompleted,
-                    recent: [...val.recent]
-                });
+            const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+            if (!lookup.has(key)) {
+                lookup.set(key, { last: null, lastCompleted: null, recent: [] });
+            }
+            const entry = lookup.get(key);
+
+            // Add to recent history (newest at start)
+            entry.recent.unshift(ex);
+            if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
+                entry.recent.pop();
             }
 
-            // Process only the new session (at the end)
-            const session = sessions[sessions.length - 1];
-            for (const ex of session.exercises) {
-                if (ex.skipped || ex.usingAlternative) continue;
+            // Update last (this is the newest)
+            entry.last = ex;
 
-                if (!newLookup.has(ex.id)) {
-                    newLookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
-                }
-                const entry = newLookup.get(ex.id);
+            // Update lastCompleted
+            if (ex.completed) {
+                entry.lastCompleted = ex;
+            }
+        }
+    },
 
-                // Add to recent history
-                // Since 'recent' is ordered [newest, ..., oldest], we unshift.
-                entry.recent.unshift(ex);
-                if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
-                    entry.recent.pop();
-                }
+    _rollbackSession(lookup, session, historySessions) {
+        // Rollback is trickier because we need to undo state changes.
+        // historySessions is the FULL history array from which we are removing the last session.
+        // We use it to refill 'recent' buffer and find previous 'lastCompleted' if needed.
 
-                // Update last (this is the newest)
-                entry.last = ex;
+        // We need to know which exercises were in the session we are removing
+        for (const ex of session.exercises) {
+            if (ex.skipped) continue;
 
-                // Update lastCompleted
-                if (ex.completed) {
-                    entry.lastCompleted = ex;
+            const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+            const entry = lookup.get(key);
+            if (!entry) continue;
+
+            // 1. Remove from 'recent'
+            // The removed exercise should be at index 0 of recent
+            if (entry.recent.length > 0 && entry.recent[0] === ex) {
+                entry.recent.shift();
+
+                // Refill 'recent' from history if it dropped below threshold
+                if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
+                    this._scanBackwardsForRecent(entry, key, historySessions, historySessions.length - 2);
                 }
             }
 
-            this._cache.set(sessions, newLookup);
-            this._lastSessions = sessions;
-            this._lastLookup = newLookup;
-            return newLookup;
+            // 2. Update 'last'
+            entry.last = entry.recent.length > 0 ? entry.recent[0] : null;
+
+            // 3. Update 'lastCompleted'
+            if (entry.lastCompleted === ex) {
+                const recentCompleted = entry.recent.find(e => e.completed);
+                if (recentCompleted) {
+                    entry.lastCompleted = recentCompleted;
+                } else {
+                    entry.lastCompleted = this._scanBackwardsForCompleted(key, historySessions, historySessions.length - 2);
+                }
+            }
+        }
+    },
+
+    _scanBackwardsForRecent(entry, key, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            if (entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) break;
+
+            const session = sessions[i];
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex) {
+                if (!entry.recent.includes(ex)) {
+                    entry.recent.push(ex);
+                }
+            }
+        }
+    },
+
+    _scanBackwardsForCompleted(key, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            const session = sessions[i];
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex && ex.completed) {
+                return ex;
+            }
+        }
+        return null;
+    },
+
+    _ensureCache(sessions, targetId = null) {
+        if (this._cache.has(sessions)) {
+            const lookup = this._cache.get(sessions);
+            // If targetId is requested but missing, and the cache was built using a partial scan,
+            // we must force a full scan to find the missing target.
+            if (targetId && !lookup.has(targetId) && lookup._isPartial) {
+                // Fall through to full scan logic (bypass return)
+            } else {
+                return lookup;
+            }
+        }
+
+        // Optimization: Content Equality Check
+        // If array identity differs but content is identical (same session objects in same order),
+        // we can reuse the cached lookup.
+        if (this._lastSessions && sessions.length === this._lastSessions.length) {
+            let match = true;
+            // Iterate backwards as changes are usually at the end
+            for (let i = sessions.length - 1; i >= 0; i--) {
+                if (sessions[i] !== this._lastSessions[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                // Check for partial cache validity with targetId
+                if (targetId && !this._lastLookup.has(targetId) && this._lastLookup._isPartial) {
+                    // Fall through to full scan
+                } else {
+                    this._cache.set(sessions, this._lastLookup);
+                    this._lastSessions = sessions; // Update reference to newest array
+                    return this._lastLookup;
+                }
+            }
+        }
+
+        // Optimization: Incremental Update
+        if (this._lastSessions && this._lastLookup) {
+            const oldLen = this._lastSessions.length;
+            const newLen = sessions.length;
+
+            // If the last lookup was partial and we need a target it doesn't have,
+            // we cannot use incremental update safely without complex logic.
+            // Simpler to just fall back to full scan.
+            const forceFullScan = targetId && !this._lastLookup.has(targetId) && this._lastLookup._isPartial;
+
+            if (!forceFullScan) {
+                // Case 1: Append (newLen === oldLen + 1)
+                if (newLen === oldLen + 1 &&
+                    (oldLen === 0 || (sessions[0] === this._lastSessions[0] && sessions[oldLen - 1] === this._lastSessions[oldLen - 1]))) {
+
+                    const newLookup = this._cloneLookup(this._lastLookup);
+                    newLookup._isPartial = this._lastLookup._isPartial;
+                    this._applySession(newLookup, sessions[newLen - 1]);
+
+                    this._cache.set(sessions, newLookup);
+                    this._lastSessions = sessions;
+                    this._lastLookup = newLookup;
+                    return newLookup;
+                }
+
+                // Case 2: Replace Last (newLen === oldLen)
+                // e.g. User updated the current workout
+                if (newLen === oldLen && oldLen > 0 &&
+                    (sessions[0] === this._lastSessions[0] &&
+                     (oldLen === 1 || sessions[oldLen - 2] === this._lastSessions[oldLen - 2]))) {
+
+                    const newLookup = this._cloneLookup(this._lastLookup);
+                    newLookup._isPartial = this._lastLookup._isPartial;
+                    this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+                    this._applySession(newLookup, sessions[newLen - 1]);
+
+                    this._cache.set(sessions, newLookup);
+                    this._lastSessions = sessions;
+                    this._lastLookup = newLookup;
+                    return newLookup;
+                }
+
+                // Case 3: Remove Last (newLen === oldLen - 1)
+                // e.g. User deleted the last workout
+                if (newLen === oldLen - 1 && newLen > 0 &&
+                     (sessions[0] === this._lastSessions[0] && sessions[newLen - 1] === this._lastSessions[newLen - 1])) {
+
+                     const newLookup = this._cloneLookup(this._lastLookup);
+                     newLookup._isPartial = this._lastLookup._isPartial;
+                     this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+
+                     this._cache.set(sessions, newLookup);
+                     this._lastSessions = sessions;
+                     this._lastLookup = newLookup;
+                     return newLookup;
+                }
+
+                // Case 4: Remove Last to Empty (1 -> 0)
+                if (newLen === 0 && oldLen === 1) {
+                     const newLookup = new Map();
+                     newLookup._isPartial = false; // Empty is complete
+                     this._cache.set(sessions, newLookup);
+                     this._lastSessions = sessions;
+                     this._lastLookup = newLookup;
+                     return newLookup;
+                }
+            }
         }
 
         // Optimization: Iterate backwards and stop early once we found data for all current exercises.
@@ -1429,21 +1619,26 @@ export const Calculator = {
 
         const requiredIds = new Set(EXERCISES.map(e => e.id));
         const fullyResolved = new Set();
+        let brokeEarly = false;
 
         for (let i = sessions.length - 1; i >= 0; i--) {
             // Stop if we have found everything we need
-            if (fullyResolved.size === requiredIds.size) {
+            // AND if a specific target was requested, we found it too.
+            const targetFound = !targetId || fullyResolved.has(targetId);
+            if (fullyResolved.size >= requiredIds.size && targetFound) {
+                brokeEarly = true;
                 break;
             }
 
             const session = sessions[i];
             for (const ex of session.exercises) {
-                if (ex.skipped || ex.usingAlternative) continue;
+                if (ex.skipped) continue;
 
-                if (!lookup.has(ex.id)) {
-                    lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+                const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+                if (!lookup.has(key)) {
+                    lookup.set(key, { last: null, lastCompleted: null, recent: [] });
                 }
-                const entry = lookup.get(ex.id);
+                const entry = lookup.get(key);
 
                 // Add to recent history if we haven't hit the limit yet
                 if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
@@ -1463,19 +1658,21 @@ export const Calculator = {
                 // Note: We need lastCompleted to calculate progression.
                 // We need recent to detect stalls.
                 // If we have both, we can stop searching for this exercise.
-                if (requiredIds.has(ex.id) && !fullyResolved.has(ex.id)) {
+                const isRequired = requiredIds.has(key) || key === targetId;
+                if (isRequired && !fullyResolved.has(key)) {
                     // We are resolved if:
                     // 1. We have found a completed entry (so we know the last successful weight)
                     // 2. We have filled the recent buffer (so we can detect stalls)
                     // Note: If the user has NEVER completed the exercise, we will scan full history.
                     // This is expected and necessary to find the last completion (which doesn't exist).
                     if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) {
-                        fullyResolved.add(ex.id);
+                        fullyResolved.add(key);
                     }
                 }
             }
         }
 
+        lookup._isPartial = brokeEarly;
         this._cache.set(sessions, lookup);
         this._lastSessions = sessions;
         this._lastLookup = lookup;
@@ -1547,7 +1744,7 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
 
         // If we don't have enough history, it's not a stall
@@ -1559,13 +1756,13 @@ export const Calculator = {
     },
 
     getLastExercise(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.last : null;
     },
 
     getLastCompletedExercise(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.lastCompleted : null;
     },
@@ -1576,7 +1773,10 @@ export const Calculator = {
             const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
             if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
 
-            const ex = s.exercises.find(e => e.id === exerciseId && !e.skipped && !e.usingAlternative);
+            const ex = s.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === exerciseId && !e.skipped;
+            });
             if (ex) return ex;
         }
         return null;
@@ -1645,7 +1845,7 @@ export const Validator = {
                 day: 'numeric'
             });
         } catch (e) {
-            console.error('Date formatting error:', e);
+            Logger.error('Date formatting error:', { error: e.message });
             return 'Invalid Date';
         }
     }
@@ -1663,7 +1863,10 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
-import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
+import * as CONST from './constants.js';
+
+// Optimization: Create map for O(1) lookup once
+const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -1720,7 +1923,7 @@ const Modal = {
 };
 
 // === STATE & TOOLS ===
-const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: 20 };
+const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -1729,7 +1932,7 @@ const Haptics = {
 
 const Timer = {
     interval: null, endTime: null,
-    start(sec = 90) {
+    start(sec = CONST.DEFAULT_REST_TIMER_SECONDS) {
         if (this.interval) clearInterval(this.interval);
         this.endTime = Date.now() + (sec * 1000);
         const timerDock = document.getElementById('timer-dock');
@@ -1877,22 +2080,22 @@ function renderRecovery(c) {
 }
 
 function renderWarmup(c) {
-    c.innerHTML = `
-        <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
-                <h1>Warmup</h1>
-                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
-            </div>
-            <div class="card">
-        ${WARMUP.map(w => {
-            const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
-            const isChecked = activeW ? activeW.completed : false;
-            const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
-            // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
-            const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
+    let warmupHtml = '';
+    for (let i = 0; i < WARMUP.length; i++) {
+        const w = WARMUP[i];
+        const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+        const isChecked = activeW ? activeW.completed : false;
+        const altUsed = activeW ? activeW.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || w.name);
+        const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
-            return `
+        let optionsHtml = '';
+        for (let j = 0; j < w.alternatives.length; j++) {
+            const a = w.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        warmupHtml += `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
@@ -1904,12 +2107,23 @@ function renderWarmup(c) {
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
                         <option value="">${w.name}</option>
-                        ${w.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
+                        ${optionsHtml}
                     </select>
                 </details>
             </div>`;
-        }).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
+    }
+
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
+                ${warmupHtml}
+            </div>
+            <button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button>
+        </div>`;
 }
 
 function renderLifting(c) {
@@ -1936,7 +2150,9 @@ function renderLifting(c) {
                     const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
 
                     const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
-                    const last = Calculator.getLastCompletedExercise(ex.id, sessions);
+                    // Name Display Fix: Pass actual name (alternative if used) for history lookup
+                    const lookupName = hasAlt ? activeEx.altName : ex.id;
+                    const last = Calculator.getLastCompletedExercise(lookupName, sessions);
                     const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
 
                     // Optimization: Use for loop to avoid garbage collection pressure from Array.from
@@ -1954,7 +2170,7 @@ function renderLifting(c) {
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
-                            <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
+                            <div id="last-${ex.id}" class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
                         <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
@@ -1998,73 +2214,110 @@ function renderCardio(c) {
 }
 
 function renderDecompress(c) {
+    let decompressHtml = '';
+    for (let i = 0; i < DECOMPRESSION.length; i++) {
+        const d = DECOMPRESSION[i];
+        const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+        const isChecked = activeD ? activeD.completed : false;
+        const val = activeD ? activeD.val : '';
+        const altUsed = activeD ? activeD.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || d.name);
+        const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
+
+        let optionsHtml = '';
+        for (let j = 0; j < d.alternatives.length; j++) {
+            const a = d.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        decompressHtml += `
+            <div class="card">
+                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
+                    <h3 id="name-${d.id}">${displayName}</h3>
+                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
+                </div>
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
+                <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
+                    <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
+                        <option value="">Default</option>
+                        ${optionsHtml}
+                    </select>
+                </details>
+            </div>`;
+    }
+
     c.innerHTML = `
         <div class="container"><h1>Decompress</h1>
-            ${DECOMPRESSION.map(d => {
-                const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
-                const isChecked = activeD ? activeD.completed : false;
-                const val = activeD ? activeD.val : '';
-                const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
-                const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
-
-                return `
-                <div class="card">
-                    <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                        <h3 id="name-${d.id}">${displayName}</h3>
-                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
-                    </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
-                    <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
-                            <option value="">Default</option>
-                            ${d.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
-                        </select>
-                    </details>
-                </div>`;
-            }).join('')}
+            ${decompressHtml}
             <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
 
 function renderHistory(c) {
-    // Optimization: Create map for O(1) lookup
-    const exerciseMap = new Map(EXERCISES.map(e => [e.id, e]));
-
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
-    const limit = State.historyLimit || 20;
+    const limit = State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT;
     const s = [];
     for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
         s.push(sessions[i]);
     }
 
-    c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
+    let historyHtml = '';
+    if (s.length === 0) {
+        historyHtml = '<div class="card"><p>No logs yet.</p></div>';
+    } else {
+        for (let i = 0; i < s.length; i++) {
+            const x = s[i];
+
+            let warmupHtml = 'No Data';
+            if (x.warmup) {
+                warmupHtml = '';
+                for (let j = 0; j < x.warmup.length; j++) {
+                    const w = x.warmup[j];
+                    if (w.completed) {
+                        warmupHtml += `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} `;
+                    }
+                }
+            }
+
+            let exercisesHtml = '';
+            for (let j = 0; j < x.exercises.length; j++) {
+                const e = x.exercises[j];
+                const rawName = e.altName || e.name || EXERCISE_MAP.get(e.id)?.name || e.id;
+                const displayName = Sanitizer.sanitizeString(rawName);
+                exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
+            }
+
+            const decompressStatus = Array.isArray(x.decompress) ?
+                (x.decompress.every(d => d.completed) ? 'Full Session' : 'Partial') :
+                (x.decompress?.completed ? 'Completed' : 'Skipped');
+
+            historyHtml += `
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary btn-delete-session" style="width:auto; padding:0.25rem 0.75rem" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
+                <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">WARMUP</div>
-                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${x.warmup ? x.warmup.map(w => w.completed ? `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} ` : '').join('') : 'No Data'}</div>
+                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
-                ${x.exercises.map(e => {
-                     // Name Display Fix
-                     const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
-                     const displayName = Sanitizer.sanitizeString(rawName);
-                     return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
-                }).join('')}
+                ${exercisesHtml}
                 <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
                 <div class="text-xs">
                     Cardio: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
-                    Decompress: ${Array.isArray(x.decompress) ? (x.decompress.every(d=>d.completed) ? 'Full Session' : 'Partial') : (x.decompress?.completed ? 'Completed' : 'Skipped')}
+                    Decompress: ${decompressStatus}
                 </div>
             </details>
-        </div>`).join('')}
+        </div>`;
+        }
+    }
+
+    c.innerHTML = `<div class="container"><h1>History</h1>
+        ${historyHtml}
         ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
         </div>`;
 
@@ -2099,7 +2352,7 @@ function renderSettings(c) {
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
             <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
-                v${APP_VERSION} (${STORAGE_VERSION})
+                v${CONST.APP_VERSION} (${CONST.STORAGE_VERSION})
             </div>
         </div>`;
 
@@ -2328,6 +2581,26 @@ window.swapAlt = (id) => {
                 if (ex) {
                     ex.usingAlternative = !!sel;
                     ex.altName = sel;
+
+                    // Update recommended weight and stats for the new selection
+                    const target = sel || ex.id;
+                    const sessions = Storage.getSessions();
+
+                    // Update weight in state
+                    ex.weight = Calculator.getRecommendedWeight(target, State.recovery, sessions);
+
+                    // Update UI elements
+                    const inputEl = document.getElementById(`w-${id}`);
+                    if (inputEl) inputEl.value = ex.weight;
+
+                    const plateEl = document.getElementById(`pl-${id}`);
+                    if (plateEl) plateEl.textContent = `${Calculator.getPlateLoad(ex.weight)} / side`;
+
+                    const lastEl = document.getElementById(`last-${id}`);
+                    if (lastEl) {
+                        const last = Calculator.getLastCompletedExercise(target, sessions);
+                        lastEl.textContent = last ? `Last: ${last.weight} lbs` : 'First Session';
+                    }
                 }
             } else if (State.phase === 'warmup') {
                 const w = State.activeSession.warmup.find(e => e.id === id);
@@ -2506,9 +2779,9 @@ window.skipRest = () => {
     State.forceRestSkip = true;
     render();
 };
-window.startCardio = () => Timer.start(300);
+window.startCardio = () => Timer.start(CONST.CARDIO_TIMER_SECONDS);
 window.loadMoreHistory = () => {
-    State.historyLimit = (State.historyLimit || 20) + 20;
+    State.historyLimit = (State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT) + CONST.HISTORY_PAGINATION_LIMIT;
     render();
 
     // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
@@ -2535,12 +2808,12 @@ window.imp = (el) => {
     if (!file) return;
 
     // Sentinel: DoS prevention - validate file size before reading
-    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    const maxSizeBytes = CONST.MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
         Modal.show({
             type: 'error',
             title: 'File Too Large',
-            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+            message: CONST.ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
         });
         el.value = ''; // Reset input
         return;
@@ -2562,7 +2835,7 @@ const ChartCache = {
         const newIndex = new Map();
         for (const [id, val] of oldIndex) {
             newIndex.set(id, {
-                data: [...val.data],
+                data: val.data, // Shared reference (Copy-On-Write)
                 minVal: val.minVal,
                 maxVal: val.maxVal
             });
@@ -2581,6 +2854,9 @@ const ChartCache = {
 
             if (!ex.usingAlternative) {
                 const entry = index.get(ex.id);
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const v = ex.weight;
                 entry.data.push({ d: new Date(session.date), v });
                 if (v < entry.minVal) entry.minVal = v;
@@ -2601,6 +2877,9 @@ const ChartCache = {
             const lastPoint = entry.data[entry.data.length - 1];
             // Compare timestamps
             if (new Date(session.date).getTime() === lastPoint.d.getTime()) {
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const popped = entry.data.pop();
 
                 if (popped.v === entry.minVal || popped.v === entry.maxVal) {
@@ -2756,7 +3035,7 @@ if (mainContent) {
 
     // 1. Initialize observability first (for logging other initializations)
     Observability.init();
-    Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
+    Logger.info(`🚀 Flexx Files v${CONST.APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
     Security.init(Logger);
@@ -2839,7 +3118,7 @@ if (mainContent) {
 
     // 8. Track app startup
     Analytics.track('app_start', {
-        version: APP_VERSION,
+        version: CONST.APP_VERSION,
         platform: navigator.platform,
         online: navigator.onLine
     });
@@ -2953,6 +3232,7 @@ const Logger = {
     logs: [],
     maxLogs: 500,
     errorCache: null,
+    _pendingWrite: null,
 
     setLevel(level) {
         this.level = LOG_LEVELS[level] || LOG_LEVELS.INFO;
@@ -3014,22 +3294,36 @@ const Logger = {
 
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
-            const safeEntry = JSON.parse(JSON.stringify(logEntry));
+            // Optimization: Manual shallow copy instead of expensive JSON.parse(JSON.stringify)
+            const safeEntry = {
+                level: logEntry.level,
+                message: Sanitizer.sanitizeString(logEntry.message),
+                timestamp: logEntry.timestamp,
+                url: logEntry.url,
+                userAgent: logEntry.userAgent
+            };
 
-            // Sanitize string properties to prevent stored XSS
-            safeEntry.message = Sanitizer.sanitizeString(safeEntry.message);
-            if (safeEntry.context) {
-                if (safeEntry.context.stack) {
-                    delete safeEntry.context.stack;
-                }
-                if (safeEntry.context.error && typeof safeEntry.context.error === 'object') {
-                    if (safeEntry.context.error.stack) delete safeEntry.context.error.stack;
-                }
-                for (const key in safeEntry.context) {
-                    if (typeof safeEntry.context[key] === 'string') {
-                        safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);
+            if (logEntry.context) {
+                const safeContext = {};
+                for (const key in logEntry.context) {
+                    if (key === 'stack') continue;
+
+                    const value = logEntry.context[key];
+
+                    if (key === 'error' && value && typeof value === 'object') {
+                        const safeError = {};
+                        for (const errKey in value) {
+                            if (errKey === 'stack') continue;
+                            safeError[errKey] = value[errKey];
+                        }
+                        safeContext[key] = safeError;
+                    } else if (typeof value === 'string') {
+                        safeContext[key] = Sanitizer.sanitizeString(value);
+                    } else {
+                        safeContext[key] = value;
                     }
                 }
+                safeEntry.context = safeContext;
             }
 
             this.errorCache.push(safeEntry);
@@ -3037,9 +3331,27 @@ const Logger = {
             if (this.errorCache.length > 50) {
                 this.errorCache.shift();
             }
-            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
+
+            // Optimization: Batch writes to localStorage
+            if (this._pendingWrite) clearTimeout(this._pendingWrite);
+            this._pendingWrite = setTimeout(() => this.flushErrors(), 1000);
+
         } catch (e) {
             console.error('Failed to persist error:', e);
+        }
+    },
+
+    flushErrors() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+        if (this.errorCache) {
+            try {
+                localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
+            } catch (e) {
+                console.error('Failed to flush errors:', e);
+            }
         }
     },
 
@@ -3233,6 +3545,10 @@ export const Observability = {
         ErrorTracker.init();
         PerformanceMonitor.init();
         BatteryMonitor.init();
+
+        // Ensure errors are flushed on page unload
+        window.addEventListener('beforeunload', () => Logger.flushErrors());
+
         Logger.info('Observability system initialized', { version: APP_VERSION });
     },
 
@@ -3245,6 +3561,7 @@ export const Observability = {
 
 // Export individual modules for direct access
 export { Logger, Metrics, Analytics, ErrorTracker, PerformanceMonitor, BatteryMonitor };
+
 ```
 
 ## js/accessibility.js
@@ -3660,6 +3977,7 @@ export const Accessibility = {
 };
 
 export default Accessibility;
+
 ```
 
 ## js/security.js
@@ -3686,6 +4004,72 @@ const SANITIZE_MAP = {
     '/': '&#x2F;'
 };
 const SANITIZE_REGEX = /[<>"'\/]/g;
+
+/**
+ * Internal recursive sanitizer that mimics JSON.parse(JSON.stringify(x))
+ * but avoids the overhead of serialization and parsing.
+ */
+function recursiveSanitize(data) {
+    if (data === undefined || typeof data === 'function' || typeof data === 'symbol') {
+        return undefined;
+    }
+
+    if (data === null) {
+        return null;
+    }
+
+    if (typeof data === 'bigint') {
+        throw new TypeError('Do not know how to serialize a BigInt');
+    }
+
+    if (typeof data !== 'object') {
+        if (typeof data === 'number') {
+             if (Number.isNaN(data) || !Number.isFinite(data)) {
+                return null;
+            }
+            return data;
+        }
+        return data;
+    }
+
+    if (typeof data.toJSON === 'function') {
+        return recursiveSanitize(data.toJSON());
+    }
+
+    if (data instanceof Number) {
+         const val = data.valueOf();
+         if (Number.isNaN(val) || !Number.isFinite(val)) {
+            return null;
+        }
+        return val;
+    }
+    if (data instanceof String) {
+        return data.valueOf();
+    }
+    if (data instanceof Boolean) {
+        return data.valueOf();
+    }
+
+    if (Array.isArray(data)) {
+        const arr = new Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            const val = recursiveSanitize(data[i]);
+            arr[i] = (val === undefined) ? null : val;
+        }
+        return arr;
+    }
+
+    const obj = {};
+    for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+            const val = recursiveSanitize(data[key]);
+            if (val !== undefined) {
+                obj[key] = val;
+            }
+        }
+    }
+    return obj;
+}
 
 export const Sanitizer = {
     /**
@@ -3800,9 +4184,8 @@ export const Sanitizer = {
      */
     sanitizeJSON(data) {
         try {
-            // Parse and re-stringify to remove functions and undefined values
-            const parsed = JSON.parse(JSON.stringify(data));
-            return parsed;
+            // Optimized recursive copy to remove functions/undefined (faster than JSON parse/stringify)
+            return recursiveSanitize(data);
         } catch (e) {
             Logger.warn('Failed to sanitize JSON', { error: e.message });
             return null;
@@ -4128,6 +4511,7 @@ export const AuditLog = {
     logs: [],
     persistedLogs: null,
     maxLogs: 100,
+    _pendingWrite: null,
 
     /**
      * Log security-relevant events
@@ -4183,9 +4567,25 @@ export const AuditLog = {
                 this.persistedLogs.shift();
             }
 
-            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
+            // Optimization: Batch writes to localStorage
+            if (this._pendingWrite) clearTimeout(this._pendingWrite);
+            this._pendingWrite = setTimeout(() => this.flushLogs(), 1000);
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
+        }
+    },
+
+    flushLogs() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+        if (this.persistedLogs) {
+            try {
+                localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
+            } catch (e) {
+                Logger.error('Failed to flush audit logs', { error: e.message });
+            }
         }
     },
 
@@ -4203,6 +4603,7 @@ export const AuditLog = {
     },
 
     clear() {
+        if (this._pendingWrite) clearTimeout(this._pendingWrite);
         this.logs = [];
         this.persistedLogs = null;
         localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
@@ -4216,6 +4617,9 @@ export const Security = {
         // Log initialization
         AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
+
+        // Ensure flush on unload
+        window.addEventListener('beforeunload', () => AuditLog.flushLogs());
     },
 
     Sanitizer,
@@ -4629,6 +5033,7 @@ export default {
     NumberFormatter,
     Timezone
 };
+
 ```
 
 ## sw.js
@@ -4636,7 +5041,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.18';
+const CACHE_NAME = 'flexx-v3.9.26';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
@@ -4647,7 +5052,13 @@ const ASSETS = [
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(k => Promise.all(k.map(n => n !== CACHE_NAME ? caches.delete(n) : null))).then(()=>self.clients.claim())));
-self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('./index.html')))));
+self.addEventListener('fetch', e => {
+    e.respondWith(
+        caches.match(e.request).then(r => r || fetch(e.request).catch(() => {
+            if (e.request.mode === 'navigate') return caches.match('./index.html');
+        }))
+    );
+});
 self.addEventListener('message', e => { if (e.data?.type === 'SKIP_WAITING') self.skipWaiting(); });
 ```
 

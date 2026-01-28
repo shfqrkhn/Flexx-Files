@@ -26,7 +26,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.18';
+export const APP_VERSION = '3.9.26';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -62,6 +62,8 @@ export const DEBUG_REST_UNLOCK_HOURS = 73; // Backdating time for rest unlock (3
 // === UI TIMING ===
 export const CHART_RENDER_DELAY_MS = 100; // Delay before rendering chart to ensure DOM is ready
 export const TIMER_TICK_INTERVAL_MS = 1000; // Timer update frequency
+export const HISTORY_PAGINATION_LIMIT = 20; // Number of sessions to load per page
+export const CARDIO_TIMER_SECONDS = 300; // Default duration for cardio timer (5 mins)
 
 // === RECOVERY STATES ===
 export const RECOVERY_STATES = {

@@ -4,7 +4,10 @@ import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
-import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
+import * as CONST from './constants.js';
+
+// Optimization: Create map for O(1) lookup once
+const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -61,7 +64,7 @@ const Modal = {
 };
 
 // === STATE & TOOLS ===
-const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: 20 };
+const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -70,7 +73,7 @@ const Haptics = {
 
 const Timer = {
     interval: null, endTime: null,
-    start(sec = 90) {
+    start(sec = CONST.DEFAULT_REST_TIMER_SECONDS) {
         if (this.interval) clearInterval(this.interval);
         this.endTime = Date.now() + (sec * 1000);
         const timerDock = document.getElementById('timer-dock');
@@ -218,22 +221,22 @@ function renderRecovery(c) {
 }
 
 function renderWarmup(c) {
-    c.innerHTML = `
-        <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
-                <h1>Warmup</h1>
-                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
-            </div>
-            <div class="card">
-        ${WARMUP.map(w => {
-            const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
-            const isChecked = activeW ? activeW.completed : false;
-            const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
-            // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
-            const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
+    let warmupHtml = '';
+    for (let i = 0; i < WARMUP.length; i++) {
+        const w = WARMUP[i];
+        const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+        const isChecked = activeW ? activeW.completed : false;
+        const altUsed = activeW ? activeW.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || w.name);
+        const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
-            return `
+        let optionsHtml = '';
+        for (let j = 0; j < w.alternatives.length; j++) {
+            const a = w.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        warmupHtml += `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
@@ -245,12 +248,23 @@ function renderWarmup(c) {
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
                         <option value="">${w.name}</option>
-                        ${w.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
+                        ${optionsHtml}
                     </select>
                 </details>
             </div>`;
-        }).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
+    }
+
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
+                ${warmupHtml}
+            </div>
+            <button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button>
+        </div>`;
 }
 
 function renderLifting(c) {
@@ -341,73 +355,110 @@ function renderCardio(c) {
 }
 
 function renderDecompress(c) {
+    let decompressHtml = '';
+    for (let i = 0; i < DECOMPRESSION.length; i++) {
+        const d = DECOMPRESSION[i];
+        const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+        const isChecked = activeD ? activeD.completed : false;
+        const val = activeD ? activeD.val : '';
+        const altUsed = activeD ? activeD.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || d.name);
+        const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
+
+        let optionsHtml = '';
+        for (let j = 0; j < d.alternatives.length; j++) {
+            const a = d.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        decompressHtml += `
+            <div class="card">
+                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
+                    <h3 id="name-${d.id}">${displayName}</h3>
+                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
+                </div>
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
+                <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
+                    <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
+                        <option value="">Default</option>
+                        ${optionsHtml}
+                    </select>
+                </details>
+            </div>`;
+    }
+
     c.innerHTML = `
         <div class="container"><h1>Decompress</h1>
-            ${DECOMPRESSION.map(d => {
-                const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
-                const isChecked = activeD ? activeD.completed : false;
-                const val = activeD ? activeD.val : '';
-                const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
-                const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
-
-                return `
-                <div class="card">
-                    <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                        <h3 id="name-${d.id}">${displayName}</h3>
-                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
-                    </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
-                    <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
-                            <option value="">Default</option>
-                            ${d.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
-                        </select>
-                    </details>
-                </div>`;
-            }).join('')}
+            ${decompressHtml}
             <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
 
 function renderHistory(c) {
-    // Optimization: Create map for O(1) lookup
-    const exerciseMap = new Map(EXERCISES.map(e => [e.id, e]));
-
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
-    const limit = State.historyLimit || 20;
+    const limit = State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT;
     const s = [];
     for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
         s.push(sessions[i]);
     }
 
-    c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
+    let historyHtml = '';
+    if (s.length === 0) {
+        historyHtml = '<div class="card"><p>No logs yet.</p></div>';
+    } else {
+        for (let i = 0; i < s.length; i++) {
+            const x = s[i];
+
+            let warmupHtml = 'No Data';
+            if (x.warmup) {
+                warmupHtml = '';
+                for (let j = 0; j < x.warmup.length; j++) {
+                    const w = x.warmup[j];
+                    if (w.completed) {
+                        warmupHtml += `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} `;
+                    }
+                }
+            }
+
+            let exercisesHtml = '';
+            for (let j = 0; j < x.exercises.length; j++) {
+                const e = x.exercises[j];
+                const rawName = e.altName || e.name || EXERCISE_MAP.get(e.id)?.name || e.id;
+                const displayName = Sanitizer.sanitizeString(rawName);
+                exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
+            }
+
+            const decompressStatus = Array.isArray(x.decompress) ?
+                (x.decompress.every(d => d.completed) ? 'Full Session' : 'Partial') :
+                (x.decompress?.completed ? 'Completed' : 'Skipped');
+
+            historyHtml += `
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary btn-delete-session" style="width:auto; padding:0.25rem 0.75rem" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
+                <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">WARMUP</div>
-                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${x.warmup ? x.warmup.map(w => w.completed ? `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} ` : '').join('') : 'No Data'}</div>
+                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
-                ${x.exercises.map(e => {
-                     // Name Display Fix
-                     const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
-                     const displayName = Sanitizer.sanitizeString(rawName);
-                     return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
-                }).join('')}
+                ${exercisesHtml}
                 <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
                 <div class="text-xs">
                     Cardio: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
-                    Decompress: ${Array.isArray(x.decompress) ? (x.decompress.every(d=>d.completed) ? 'Full Session' : 'Partial') : (x.decompress?.completed ? 'Completed' : 'Skipped')}
+                    Decompress: ${decompressStatus}
                 </div>
             </details>
-        </div>`).join('')}
+        </div>`;
+        }
+    }
+
+    c.innerHTML = `<div class="container"><h1>History</h1>
+        ${historyHtml}
         ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
         </div>`;
 
@@ -442,7 +493,7 @@ function renderSettings(c) {
                 <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
             </div>
             <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
-                v${APP_VERSION} (${STORAGE_VERSION})
+                v${CONST.APP_VERSION} (${CONST.STORAGE_VERSION})
             </div>
         </div>`;
 
@@ -869,9 +920,9 @@ window.skipRest = () => {
     State.forceRestSkip = true;
     render();
 };
-window.startCardio = () => Timer.start(300);
+window.startCardio = () => Timer.start(CONST.CARDIO_TIMER_SECONDS);
 window.loadMoreHistory = () => {
-    State.historyLimit = (State.historyLimit || 20) + 20;
+    State.historyLimit = (State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT) + CONST.HISTORY_PAGINATION_LIMIT;
     render();
 
     // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
@@ -898,12 +949,12 @@ window.imp = (el) => {
     if (!file) return;
 
     // Sentinel: DoS prevention - validate file size before reading
-    const maxSizeBytes = MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
+    const maxSizeBytes = CONST.MAX_IMPORT_FILE_SIZE_MB * 1024 * 1024;
     if (file.size > maxSizeBytes) {
         Modal.show({
             type: 'error',
             title: 'File Too Large',
-            message: ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
+            message: CONST.ERROR_MESSAGES.IMPORT_FILE_TOO_LARGE
         });
         el.value = ''; // Reset input
         return;
@@ -1125,7 +1176,7 @@ if (mainContent) {
 
     // 1. Initialize observability first (for logging other initializations)
     Observability.init();
-    Logger.info(`🚀 Flexx Files v${APP_VERSION} - Mission-Critical Mode`);
+    Logger.info(`🚀 Flexx Files v${CONST.APP_VERSION} - Mission-Critical Mode`);
 
     // 2. Initialize security system
     Security.init(Logger);
@@ -1208,7 +1259,7 @@ if (mainContent) {
 
     // 8. Track app startup
     Analytics.track('app_start', {
-        version: APP_VERSION,
+        version: CONST.APP_VERSION,
         platform: navigator.platform,
         online: navigator.onLine
     });
