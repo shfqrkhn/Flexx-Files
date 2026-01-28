@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.23 (Refactor)
+**Version:** 3.9.24 (Fix)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.22';
+export const APP_VERSION = '3.9.24';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -5039,7 +5039,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.23';
+const CACHE_NAME = 'flexx-v3.9.24';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
@@ -5050,7 +5050,13 @@ const ASSETS = [
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))));
 self.addEventListener('activate', e => e.waitUntil(caches.keys().then(k => Promise.all(k.map(n => n !== CACHE_NAME ? caches.delete(n) : null))).then(()=>self.clients.claim())));
-self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('./index.html')))));
+self.addEventListener('fetch', e => {
+    e.respondWith(
+        caches.match(e.request).then(r => r || fetch(e.request).catch(() => {
+            if (e.request.mode === 'navigate') return caches.match('./index.html');
+        }))
+    );
+});
 self.addEventListener('message', e => { if (e.data?.type === 'SKIP_WAITING') self.skipWaiting(); });
 ```
 
