@@ -6,6 +6,9 @@ import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
 import { MAX_IMPORT_FILE_SIZE_MB, ERROR_MESSAGES, APP_VERSION, STORAGE_VERSION } from './constants.js';
 
+// Optimization: Create map for O(1) lookup once
+const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
+
 // === MODAL SYSTEM ===
 const Modal = {
     el: document.getElementById('modal-layer'),
@@ -394,9 +397,6 @@ function renderDecompress(c) {
 }
 
 function renderHistory(c) {
-    // Optimization: Create map for O(1) lookup
-    const exerciseMap = new Map(EXERCISES.map(e => [e.id, e]));
-
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
     const limit = State.historyLimit || 20;
@@ -426,7 +426,7 @@ function renderHistory(c) {
             let exercisesHtml = '';
             for (let j = 0; j < x.exercises.length; j++) {
                 const e = x.exercises[j];
-                const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
+                const rawName = e.altName || e.name || EXERCISE_MAP.get(e.id)?.name || e.id;
                 const displayName = Sanitizer.sanitizeString(rawName);
                 exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
             }
