@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.24 (Fix)
+**Version:** 3.9.26 (Refactor)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -269,7 +269,8 @@ body.reduce-motion *::after {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Allow text selection for accessibility - only disable on interactive elements */
-button, .nav-item, .stepper-btn, .set-btn, summary, label { user-select: none; touch-action: manipulation; }
+button, .nav-item, .stepper-btn, .set-btn, summary, label, a, input, select, textarea { touch-action: manipulation; }
+button, .nav-item, .stepper-btn, .set-btn, summary, label { user-select: none; }
 
 body {
     background: var(--bg-primary); color: var(--text-primary);
@@ -844,7 +845,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.24';
+export const APP_VERSION = '3.9.26';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -920,6 +921,7 @@ export const ERROR_MESSAGES = {
 import { EXERCISES } from './config.js';
 import * as CONST from './constants.js';
 import { Validator as SecurityValidator, Sanitizer } from './security.js';
+import { Logger } from './observability.js';
 
 export const Storage = {
     KEYS: {
@@ -946,7 +948,7 @@ export const Storage = {
 
         begin() {
             if (this.inProgress) {
-                console.warn('Transaction already in progress');
+                Logger.warn('Transaction already in progress');
                 return false;
             }
 
@@ -958,17 +960,17 @@ export const Storage = {
                 // We trust the application not to mutate cache objects in-place.
                 this.snapshot = Storage.getSessions();
                 this.inProgress = true;
-                console.log('Transaction started', { sessionCount: this.snapshot.length });
+                Logger.debug('Transaction started', { sessionCount: this.snapshot.length });
                 return true;
             } catch (e) {
-                console.error('Failed to begin transaction:', e);
+                Logger.error('Failed to begin transaction:', { error: e.message });
                 return false;
             }
         },
 
         commit() {
             if (!this.inProgress) {
-                console.warn('No transaction in progress');
+                Logger.warn('No transaction in progress');
                 return false;
             }
 
@@ -976,10 +978,10 @@ export const Storage = {
                 // Transaction successful, clear snapshot
                 this.snapshot = null;
                 this.inProgress = false;
-                console.log('Transaction committed');
+                Logger.debug('Transaction committed');
                 return true;
             } catch (e) {
-                console.error('Failed to commit transaction:', e);
+                Logger.error('Failed to commit transaction:', { error: e.message });
                 this.rollback();
                 return false;
             }
@@ -987,7 +989,7 @@ export const Storage = {
 
         rollback() {
             if (!this.inProgress || !this.snapshot) {
-                console.warn('No transaction to rollback');
+                Logger.warn('No transaction to rollback');
                 return false;
             }
 
@@ -997,10 +999,10 @@ export const Storage = {
                 Storage._sessionCache = null; // Invalidate cache
                 this.snapshot = null;
                 this.inProgress = false;
-                console.log('Transaction rolled back');
+                Logger.warn('Transaction rolled back');
                 return true;
             } catch (e) {
-                console.error('CRITICAL: Failed to rollback transaction:', e);
+                Logger.critical('Failed to rollback transaction:', { error: e.message });
                 return false;
             }
         }
@@ -1012,10 +1014,10 @@ export const Storage = {
     saveDraft(session) {
         try {
             localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
-            console.log('Draft saved', { sessionId: session.id });
+            Logger.debug('Draft saved', { sessionId: session.id });
             return true;
         } catch (e) {
-            console.error('Failed to save draft:', e);
+            Logger.error('Failed to save draft:', { error: e.message });
             return false;
         }
     },
@@ -1028,7 +1030,7 @@ export const Storage = {
             const draft = localStorage.getItem(this.KEYS.DRAFT);
             return draft ? JSON.parse(draft) : null;
         } catch (e) {
-            console.error('Failed to load draft:', e);
+            Logger.error('Failed to load draft:', { error: e.message });
             return null;
         }
     },
@@ -1039,10 +1041,10 @@ export const Storage = {
     clearDraft() {
         try {
             localStorage.removeItem(this.KEYS.DRAFT);
-            console.log('Draft cleared');
+            Logger.debug('Draft cleared');
             return true;
         } catch (e) {
-            console.error('Failed to clear draft:', e);
+            Logger.error('Failed to clear draft:', { error: e.message });
             return false;
         }
     },
@@ -1061,7 +1063,7 @@ export const Storage = {
 
     runMigrations() {
         const currentVersion = this.getCurrentMigrationVersion();
-        console.log(`Current migration version: ${currentVersion}`);
+        Logger.info(`Current migration version: ${currentVersion}`);
 
         // If we're already on the latest version, no migration needed
         if (currentVersion === CONST.STORAGE_VERSION) {
@@ -1080,9 +1082,9 @@ export const Storage = {
 
             // Update migration version after successful migration
             this.setMigrationVersion(CONST.STORAGE_VERSION);
-            console.log(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
+            Logger.info(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
         } catch (e) {
-            console.error('Migration failed:', e);
+            Logger.error('Migration failed:', { error: e.message });
             alert('Data migration failed. Your data is safe but may need manual export/import.');
         }
     },
@@ -1093,7 +1095,7 @@ export const Storage = {
      * This demonstrates the pattern for future migrations
      */
     migrateV3toV4() {
-        console.log('Running v3 -> v4 migration');
+        Logger.info('Running v3 -> v4 migration');
         const sessions = this.getSessions();
 
         // Example migration logic:
@@ -1107,7 +1109,7 @@ export const Storage = {
         });
 
         localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(migratedSessions));
-        console.log(`Migrated ${migratedSessions.length} sessions`);
+        Logger.info(`Migrated ${migratedSessions.length} sessions`);
     },
 
     getSessions() {
@@ -1120,7 +1122,7 @@ export const Storage = {
             this._sessionCache = Array.isArray(sessions) ? sessions : [];
             return this._sessionCache;
         } catch (e) {
-            console.error('Failed to load sessions:', e);
+            Logger.error('Failed to load sessions:', { error: e.message });
             // Sentinel: Flag corruption to prevent overwriting raw data later
             this._isCorrupted = true;
             // Return empty array so UI can still render partial state (e.g. empty history)
@@ -1136,14 +1138,14 @@ export const Storage = {
         // Sentinel: Prevent data loss if storage is corrupted
         if (this._isCorrupted) {
             const msg = 'Storage is corrupted. Cannot save to prevent data loss. Please export data immediately.';
-            console.error(msg);
+            Logger.critical(msg);
             alert(msg);
             throw new Error(msg);
         }
 
         // Start atomic transaction
         if (!this.Transaction.begin()) {
-            console.error('Could not start transaction for saveSession');
+            Logger.error('Could not start transaction for saveSession');
             throw new Error('Transaction failed to start');
         }
 
@@ -1152,7 +1154,7 @@ export const Storage = {
             const validation = SecurityValidator.validateSession(session);
             if (!validation.valid) {
                 const errorMsg = `Invalid session data: ${validation.errors.join(', ')}`;
-                console.error(errorMsg, { sessionId: session?.id });
+                Logger.error(errorMsg, { sessionId: session?.id });
                 throw new Error(errorMsg);
             }
 
@@ -1162,7 +1164,7 @@ export const Storage = {
             // If a session with this ID already exists, update it instead of creating a duplicate
             const existingIndex = sessions.findIndex(s => s.id === session.id);
             if (existingIndex !== -1) {
-                console.warn(`Session ${session.id} already exists. Updating instead of creating duplicate.`);
+                Logger.warn(`Session ${session.id} already exists. Updating instead of creating duplicate.`);
                 // Update existing session
                 session.sessionNumber = sessions[existingIndex].sessionNumber;
                 session.weekNumber = sessions[existingIndex].weekNumber;
@@ -1208,10 +1210,10 @@ export const Storage = {
             // Clear draft after successful save (optimistic)
             this.clearDraft();
 
-            console.log('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
+            Logger.info('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
             return session;
         } catch (e) {
-            console.error('Failed to save session:', e);
+            Logger.error('Failed to save session:', { error: e.message });
             // Rollback transaction on error
             this.Transaction.rollback();
             alert('Failed to save workout. Please try exporting your data.');
@@ -1225,7 +1227,7 @@ export const Storage = {
             const index = sessions.findIndex(s => s.id === id);
 
             if (index === -1) {
-                console.warn(`Session ${id} not found`);
+                Logger.warn(`Session ${id} not found`);
                 return false;
             }
 
@@ -1239,7 +1241,7 @@ export const Storage = {
             this.schedulePersistence();
             return true;
         } catch (e) {
-            console.error('Failed to delete session:', e);
+            Logger.error('Failed to delete session:', { error: e.message });
             alert('Failed to delete session. Please try again.');
             return false;
         }
@@ -1262,7 +1264,7 @@ export const Storage = {
             a.click();
             URL.revokeObjectURL(a.href);
         } catch (e) {
-            console.error('Export error:', e);
+            Logger.error('Export error:', { error: e.message });
             alert(CONST.ERROR_MESSAGES.EXPORT_FAILED);
         }
     },
@@ -1281,7 +1283,7 @@ export const Storage = {
             a.download = `flexx-files-auto-${safeDate}.json`;
             a.click();
         } catch (e) {
-            console.error('Auto-export error:', e);
+            Logger.error('Auto-export error:', { error: e.message });
             // Don't alert for auto-export failures, just log
         }
     },
@@ -1294,7 +1296,7 @@ export const Storage = {
             const validation = SecurityValidator.validateImportData(data);
             if (!validation.valid) {
                 // SECURITY: Never expose validation details to user
-                console.error('Import validation failed', { errors: validation.errors });
+                Logger.error('Import validation failed', { errors: validation.errors });
                 alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
                 return;
             }
@@ -1310,7 +1312,7 @@ export const Storage = {
                 window.location.reload();
             }
         } catch (e) {
-            console.error('Import error:', e);
+            Logger.error('Import error:', { error: e.message });
             alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
         }
     },
@@ -1359,7 +1361,7 @@ export const Storage = {
                 this.Transaction.commit();
             }
         } catch (e) {
-            console.error('Persistence failed:', e);
+            Logger.error('Persistence failed:', { error: e.message });
             if (this.Transaction.inProgress) {
                 this.Transaction.rollback();
             }
@@ -1843,7 +1845,7 @@ export const Validator = {
                 day: 'numeric'
             });
         } catch (e) {
-            console.error('Date formatting error:', e);
+            Logger.error('Date formatting error:', { error: e.message });
             return 'Invalid Date';
         }
     }
@@ -2296,7 +2298,7 @@ function renderHistory(c) {
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary btn-delete-session" style="width:auto; padding:0.25rem 0.75rem" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
+                <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
@@ -5039,7 +5041,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.24';
+const CACHE_NAME = 'flexx-v3.9.26';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
