@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.21 (Optimization)
+**Version:** 3.9.22 (Optimization)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.21';
+export const APP_VERSION = '3.9.22';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -932,6 +932,8 @@ export const Storage = {
     _sessionCache: null,
     _pendingWrite: null,
     _pendingWriteType: null, // 'timeout' or 'idle'
+    _draftTimer: null,
+    _pendingDraft: null,
     _isCorrupted: false,
 
     /**
@@ -1007,14 +1009,38 @@ export const Storage = {
     /**
      * Save draft session for recovery
      */
-    saveDraft(session) {
+    saveDraft(session, force = false) {
         try {
-            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
-            console.log('Draft saved', { sessionId: session.id });
+            if (force) {
+                if (this._draftTimer) clearTimeout(this._draftTimer);
+                localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
+                console.log('Draft saved (forced)', { sessionId: session.id });
+                return true;
+            }
+
+            this._pendingDraft = session;
+            if (this._draftTimer) clearTimeout(this._draftTimer);
+
+            this._draftTimer = setTimeout(() => {
+                this.flushDraft();
+            }, 500); // Debounce 500ms
+
             return true;
         } catch (e) {
             console.error('Failed to save draft:', e);
             return false;
+        }
+    },
+
+    flushDraft() {
+        if (!this._pendingDraft) return;
+        try {
+            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(this._pendingDraft));
+            console.log('Draft saved (async)', { sessionId: this._pendingDraft.id });
+            this._pendingDraft = null;
+            this._draftTimer = null;
+        } catch (e) {
+            console.error('Failed to flush draft:', e);
         }
     },
 
@@ -3144,7 +3170,7 @@ if (mainContent) {
         Storage.flushPersistence();
         // Final draft save before unload
         if (State.activeSession) {
-            Storage.saveDraft(State.activeSession);
+            Storage.saveDraft(State.activeSession, true);
         }
     });
 
@@ -5037,7 +5063,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.21';
+const CACHE_NAME = 'flexx-v3.9.22';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',

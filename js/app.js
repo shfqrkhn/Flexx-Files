@@ -377,7 +377,7 @@ function renderDecompress(c) {
                     <h3 id="name-${d.id}">${displayName}</h3>
                     <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
-                ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
                 <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
                 <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                     <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
