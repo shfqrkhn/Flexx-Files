@@ -18,6 +18,72 @@ const SANITIZE_MAP = {
 };
 const SANITIZE_REGEX = /[<>"'\/]/g;
 
+/**
+ * Internal recursive sanitizer that mimics JSON.parse(JSON.stringify(x))
+ * but avoids the overhead of serialization and parsing.
+ */
+function recursiveSanitize(data) {
+    if (data === undefined || typeof data === 'function' || typeof data === 'symbol') {
+        return undefined;
+    }
+
+    if (data === null) {
+        return null;
+    }
+
+    if (typeof data === 'bigint') {
+        throw new TypeError('Do not know how to serialize a BigInt');
+    }
+
+    if (typeof data !== 'object') {
+        if (typeof data === 'number') {
+             if (Number.isNaN(data) || !Number.isFinite(data)) {
+                return null;
+            }
+            return data;
+        }
+        return data;
+    }
+
+    if (typeof data.toJSON === 'function') {
+        return recursiveSanitize(data.toJSON());
+    }
+
+    if (data instanceof Number) {
+         const val = data.valueOf();
+         if (Number.isNaN(val) || !Number.isFinite(val)) {
+            return null;
+        }
+        return val;
+    }
+    if (data instanceof String) {
+        return data.valueOf();
+    }
+    if (data instanceof Boolean) {
+        return data.valueOf();
+    }
+
+    if (Array.isArray(data)) {
+        const arr = new Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            const val = recursiveSanitize(data[i]);
+            arr[i] = (val === undefined) ? null : val;
+        }
+        return arr;
+    }
+
+    const obj = {};
+    for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+            const val = recursiveSanitize(data[key]);
+            if (val !== undefined) {
+                obj[key] = val;
+            }
+        }
+    }
+    return obj;
+}
+
 export const Sanitizer = {
     /**
      * Scrub session object to remove unauthorized fields (Schema Enforcement)
@@ -131,9 +197,8 @@ export const Sanitizer = {
      */
     sanitizeJSON(data) {
         try {
-            // Parse and re-stringify to remove functions and undefined values
-            const parsed = JSON.parse(JSON.stringify(data));
-            return parsed;
+            // Optimized recursive copy to remove functions/undefined (faster than JSON parse/stringify)
+            return recursiveSanitize(data);
         } catch (e) {
             Logger.warn('Failed to sanitize JSON', { error: e.message });
             return null;
