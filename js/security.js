@@ -459,6 +459,7 @@ export const AuditLog = {
     logs: [],
     persistedLogs: null,
     maxLogs: 100,
+    _pendingWrite: null,
 
     /**
      * Log security-relevant events
@@ -514,9 +515,25 @@ export const AuditLog = {
                 this.persistedLogs.shift();
             }
 
-            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
+            // Optimization: Batch writes to localStorage
+            if (this._pendingWrite) clearTimeout(this._pendingWrite);
+            this._pendingWrite = setTimeout(() => this.flushLogs(), 1000);
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
+        }
+    },
+
+    flushLogs() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+        if (this.persistedLogs) {
+            try {
+                localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
+            } catch (e) {
+                Logger.error('Failed to flush audit logs', { error: e.message });
+            }
         }
     },
 
@@ -534,6 +551,7 @@ export const AuditLog = {
     },
 
     clear() {
+        if (this._pendingWrite) clearTimeout(this._pendingWrite);
         this.logs = [];
         this.persistedLogs = null;
         localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
@@ -547,6 +565,9 @@ export const Security = {
         // Log initialization
         AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
+
+        // Ensure flush on unload
+        window.addEventListener('beforeunload', () => AuditLog.flushLogs());
     },
 
     Sanitizer,
