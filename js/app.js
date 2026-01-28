@@ -277,7 +277,9 @@ function renderLifting(c) {
                     const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
 
                     const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
-                    const last = Calculator.getLastCompletedExercise(ex.id, sessions);
+                    // Name Display Fix: Pass actual name (alternative if used) for history lookup
+                    const lookupName = hasAlt ? activeEx.altName : ex.id;
+                    const last = Calculator.getLastCompletedExercise(lookupName, sessions);
                     const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
 
                     // Optimization: Use for loop to avoid garbage collection pressure from Array.from
@@ -295,7 +297,7 @@ function renderLifting(c) {
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
-                            <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
+                            <div id="last-${ex.id}" class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
                         <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
@@ -669,6 +671,26 @@ window.swapAlt = (id) => {
                 if (ex) {
                     ex.usingAlternative = !!sel;
                     ex.altName = sel;
+
+                    // Update recommended weight and stats for the new selection
+                    const target = sel || ex.id;
+                    const sessions = Storage.getSessions();
+
+                    // Update weight in state
+                    ex.weight = Calculator.getRecommendedWeight(target, State.recovery, sessions);
+
+                    // Update UI elements
+                    const inputEl = document.getElementById(`w-${id}`);
+                    if (inputEl) inputEl.value = ex.weight;
+
+                    const plateEl = document.getElementById(`pl-${id}`);
+                    if (plateEl) plateEl.textContent = `${Calculator.getPlateLoad(ex.weight)} / side`;
+
+                    const lastEl = document.getElementById(`last-${id}`);
+                    if (lastEl) {
+                        const last = Calculator.getLastCompletedExercise(target, sessions);
+                        lastEl.textContent = last ? `Last: ${last.weight} lbs` : 'First Session';
+                    }
                 }
             } else if (State.phase === 'warmup') {
                 const w = State.activeSession.warmup.find(e => e.id === id);

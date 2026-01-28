@@ -488,12 +488,13 @@ export const Calculator = {
 
     _applySession(lookup, session) {
         for (const ex of session.exercises) {
-            if (ex.skipped || ex.usingAlternative) continue;
+            if (ex.skipped) continue;
 
-            if (!lookup.has(ex.id)) {
-                lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+            const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+            if (!lookup.has(key)) {
+                lookup.set(key, { last: null, lastCompleted: null, recent: [] });
             }
-            const entry = lookup.get(ex.id);
+            const entry = lookup.get(key);
 
             // Add to recent history (newest at start)
             entry.recent.unshift(ex);
@@ -518,9 +519,10 @@ export const Calculator = {
 
         // We need to know which exercises were in the session we are removing
         for (const ex of session.exercises) {
-            if (ex.skipped || ex.usingAlternative) continue;
+            if (ex.skipped) continue;
 
-            const entry = lookup.get(ex.id);
+            const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+            const entry = lookup.get(key);
             if (!entry) continue;
 
             // 1. Remove from 'recent'
@@ -530,7 +532,7 @@ export const Calculator = {
 
                 // Refill 'recent' from history if it dropped below threshold
                 if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
-                    this._scanBackwardsForRecent(entry, ex.id, historySessions, historySessions.length - 2);
+                    this._scanBackwardsForRecent(entry, key, historySessions, historySessions.length - 2);
                 }
             }
 
@@ -543,19 +545,23 @@ export const Calculator = {
                 if (recentCompleted) {
                     entry.lastCompleted = recentCompleted;
                 } else {
-                    entry.lastCompleted = this._scanBackwardsForCompleted(ex.id, historySessions, historySessions.length - 2);
+                    entry.lastCompleted = this._scanBackwardsForCompleted(key, historySessions, historySessions.length - 2);
                 }
             }
         }
     },
 
-    _scanBackwardsForRecent(entry, exerciseId, sessions, startIndex) {
+    _scanBackwardsForRecent(entry, key, sessions, startIndex) {
         for (let i = startIndex; i >= 0; i--) {
             if (entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) break;
 
             const session = sessions[i];
-            const ex = session.exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative) {
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex) {
                 if (!entry.recent.includes(ex)) {
                     entry.recent.push(ex);
                 }
@@ -563,19 +569,32 @@ export const Calculator = {
         }
     },
 
-    _scanBackwardsForCompleted(exerciseId, sessions, startIndex) {
+    _scanBackwardsForCompleted(key, sessions, startIndex) {
         for (let i = startIndex; i >= 0; i--) {
             const session = sessions[i];
-            const ex = session.exercises.find(e => e.id === exerciseId);
-            if (ex && !ex.skipped && !ex.usingAlternative && ex.completed) {
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex && ex.completed) {
                 return ex;
             }
         }
         return null;
     },
 
-    _ensureCache(sessions) {
-        if (this._cache.has(sessions)) return this._cache.get(sessions);
+    _ensureCache(sessions, targetId = null) {
+        if (this._cache.has(sessions)) {
+            const lookup = this._cache.get(sessions);
+            // If targetId is requested but missing, and the cache was built using a partial scan,
+            // we must force a full scan to find the missing target.
+            if (targetId && !lookup.has(targetId) && lookup._isPartial) {
+                // Fall through to full scan logic (bypass return)
+            } else {
+                return lookup;
+            }
+        }
 
         // Optimization: Content Equality Check
         // If array identity differs but content is identical (same session objects in same order),
@@ -590,9 +609,14 @@ export const Calculator = {
                 }
             }
             if (match) {
-                this._cache.set(sessions, this._lastLookup);
-                this._lastSessions = sessions; // Update reference to newest array
-                return this._lastLookup;
+                // Check for partial cache validity with targetId
+                if (targetId && !this._lastLookup.has(targetId) && this._lastLookup._isPartial) {
+                    // Fall through to full scan
+                } else {
+                    this._cache.set(sessions, this._lastLookup);
+                    this._lastSessions = sessions; // Update reference to newest array
+                    return this._lastLookup;
+                }
             }
         }
 
@@ -601,56 +625,67 @@ export const Calculator = {
             const oldLen = this._lastSessions.length;
             const newLen = sessions.length;
 
-            // Case 1: Append (newLen === oldLen + 1)
-            if (newLen === oldLen + 1 &&
-                (oldLen === 0 || (sessions[0] === this._lastSessions[0] && sessions[oldLen - 1] === this._lastSessions[oldLen - 1]))) {
+            // If the last lookup was partial and we need a target it doesn't have,
+            // we cannot use incremental update safely without complex logic.
+            // Simpler to just fall back to full scan.
+            const forceFullScan = targetId && !this._lastLookup.has(targetId) && this._lastLookup._isPartial;
 
-                const newLookup = this._cloneLookup(this._lastLookup);
-                this._applySession(newLookup, sessions[newLen - 1]);
+            if (!forceFullScan) {
+                // Case 1: Append (newLen === oldLen + 1)
+                if (newLen === oldLen + 1 &&
+                    (oldLen === 0 || (sessions[0] === this._lastSessions[0] && sessions[oldLen - 1] === this._lastSessions[oldLen - 1]))) {
 
-                this._cache.set(sessions, newLookup);
-                this._lastSessions = sessions;
-                this._lastLookup = newLookup;
-                return newLookup;
-            }
+                    const newLookup = this._cloneLookup(this._lastLookup);
+                    newLookup._isPartial = this._lastLookup._isPartial;
+                    this._applySession(newLookup, sessions[newLen - 1]);
 
-            // Case 2: Replace Last (newLen === oldLen)
-            // e.g. User updated the current workout
-            if (newLen === oldLen && oldLen > 0 &&
-                (sessions[0] === this._lastSessions[0] &&
-                 (oldLen === 1 || sessions[oldLen - 2] === this._lastSessions[oldLen - 2]))) {
+                    this._cache.set(sessions, newLookup);
+                    this._lastSessions = sessions;
+                    this._lastLookup = newLookup;
+                    return newLookup;
+                }
 
-                const newLookup = this._cloneLookup(this._lastLookup);
-                this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
-                this._applySession(newLookup, sessions[newLen - 1]);
+                // Case 2: Replace Last (newLen === oldLen)
+                // e.g. User updated the current workout
+                if (newLen === oldLen && oldLen > 0 &&
+                    (sessions[0] === this._lastSessions[0] &&
+                     (oldLen === 1 || sessions[oldLen - 2] === this._lastSessions[oldLen - 2]))) {
 
-                this._cache.set(sessions, newLookup);
-                this._lastSessions = sessions;
-                this._lastLookup = newLookup;
-                return newLookup;
-            }
+                    const newLookup = this._cloneLookup(this._lastLookup);
+                    newLookup._isPartial = this._lastLookup._isPartial;
+                    this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+                    this._applySession(newLookup, sessions[newLen - 1]);
 
-            // Case 3: Remove Last (newLen === oldLen - 1)
-            // e.g. User deleted the last workout
-            if (newLen === oldLen - 1 && newLen > 0 &&
-                 (sessions[0] === this._lastSessions[0] && sessions[newLen - 1] === this._lastSessions[newLen - 1])) {
+                    this._cache.set(sessions, newLookup);
+                    this._lastSessions = sessions;
+                    this._lastLookup = newLookup;
+                    return newLookup;
+                }
 
-                 const newLookup = this._cloneLookup(this._lastLookup);
-                 this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+                // Case 3: Remove Last (newLen === oldLen - 1)
+                // e.g. User deleted the last workout
+                if (newLen === oldLen - 1 && newLen > 0 &&
+                     (sessions[0] === this._lastSessions[0] && sessions[newLen - 1] === this._lastSessions[newLen - 1])) {
 
-                 this._cache.set(sessions, newLookup);
-                 this._lastSessions = sessions;
-                 this._lastLookup = newLookup;
-                 return newLookup;
-            }
+                     const newLookup = this._cloneLookup(this._lastLookup);
+                     newLookup._isPartial = this._lastLookup._isPartial;
+                     this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
 
-            // Case 4: Remove Last to Empty (1 -> 0)
-            if (newLen === 0 && oldLen === 1) {
-                 const newLookup = new Map();
-                 this._cache.set(sessions, newLookup);
-                 this._lastSessions = sessions;
-                 this._lastLookup = newLookup;
-                 return newLookup;
+                     this._cache.set(sessions, newLookup);
+                     this._lastSessions = sessions;
+                     this._lastLookup = newLookup;
+                     return newLookup;
+                }
+
+                // Case 4: Remove Last to Empty (1 -> 0)
+                if (newLen === 0 && oldLen === 1) {
+                     const newLookup = new Map();
+                     newLookup._isPartial = false; // Empty is complete
+                     this._cache.set(sessions, newLookup);
+                     this._lastSessions = sessions;
+                     this._lastLookup = newLookup;
+                     return newLookup;
+                }
             }
         }
 
@@ -663,21 +698,26 @@ export const Calculator = {
 
         const requiredIds = new Set(EXERCISES.map(e => e.id));
         const fullyResolved = new Set();
+        let brokeEarly = false;
 
         for (let i = sessions.length - 1; i >= 0; i--) {
             // Stop if we have found everything we need
-            if (fullyResolved.size === requiredIds.size) {
+            // AND if a specific target was requested, we found it too.
+            const targetFound = !targetId || fullyResolved.has(targetId);
+            if (fullyResolved.size >= requiredIds.size && targetFound) {
+                brokeEarly = true;
                 break;
             }
 
             const session = sessions[i];
             for (const ex of session.exercises) {
-                if (ex.skipped || ex.usingAlternative) continue;
+                if (ex.skipped) continue;
 
-                if (!lookup.has(ex.id)) {
-                    lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+                const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+                if (!lookup.has(key)) {
+                    lookup.set(key, { last: null, lastCompleted: null, recent: [] });
                 }
-                const entry = lookup.get(ex.id);
+                const entry = lookup.get(key);
 
                 // Add to recent history if we haven't hit the limit yet
                 if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
@@ -697,19 +737,21 @@ export const Calculator = {
                 // Note: We need lastCompleted to calculate progression.
                 // We need recent to detect stalls.
                 // If we have both, we can stop searching for this exercise.
-                if (requiredIds.has(ex.id) && !fullyResolved.has(ex.id)) {
+                const isRequired = requiredIds.has(key) || key === targetId;
+                if (isRequired && !fullyResolved.has(key)) {
                     // We are resolved if:
                     // 1. We have found a completed entry (so we know the last successful weight)
                     // 2. We have filled the recent buffer (so we can detect stalls)
                     // Note: If the user has NEVER completed the exercise, we will scan full history.
                     // This is expected and necessary to find the last completion (which doesn't exist).
                     if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) {
-                        fullyResolved.add(ex.id);
+                        fullyResolved.add(key);
                     }
                 }
             }
         }
 
+        lookup._isPartial = brokeEarly;
         this._cache.set(sessions, lookup);
         this._lastSessions = sessions;
         this._lastLookup = lookup;
@@ -781,7 +823,7 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
 
         // If we don't have enough history, it's not a stall
@@ -793,13 +835,13 @@ export const Calculator = {
     },
 
     getLastExercise(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.last : null;
     },
 
     getLastCompletedExercise(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.lastCompleted : null;
     },
@@ -810,7 +852,10 @@ export const Calculator = {
             const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
             if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
 
-            const ex = s.exercises.find(e => e.id === exerciseId && !e.skipped && !e.usingAlternative);
+            const ex = s.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === exerciseId && !e.skipped;
+            });
             if (ex) return ex;
         }
         return null;
