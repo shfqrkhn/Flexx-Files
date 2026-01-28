@@ -218,22 +218,22 @@ function renderRecovery(c) {
 }
 
 function renderWarmup(c) {
-    c.innerHTML = `
-        <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
-                <h1>Warmup</h1>
-                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
-            </div>
-            <div class="card">
-        ${WARMUP.map(w => {
-            const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
-            const isChecked = activeW ? activeW.completed : false;
-            const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
-            // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
-            const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
+    let warmupHtml = '';
+    for (let i = 0; i < WARMUP.length; i++) {
+        const w = WARMUP[i];
+        const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+        const isChecked = activeW ? activeW.completed : false;
+        const altUsed = activeW ? activeW.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || w.name);
+        const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
-            return `
+        let optionsHtml = '';
+        for (let j = 0; j < w.alternatives.length; j++) {
+            const a = w.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        warmupHtml += `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
@@ -245,12 +245,23 @@ function renderWarmup(c) {
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
                         <option value="">${w.name}</option>
-                        ${w.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
+                        ${optionsHtml}
                     </select>
                 </details>
             </div>`;
-        }).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
+    }
+
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
+                ${warmupHtml}
+            </div>
+            <button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button>
+        </div>`;
 }
 
 function renderLifting(c) {
@@ -341,33 +352,43 @@ function renderCardio(c) {
 }
 
 function renderDecompress(c) {
+    let decompressHtml = '';
+    for (let i = 0; i < DECOMPRESSION.length; i++) {
+        const d = DECOMPRESSION[i];
+        const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+        const isChecked = activeD ? activeD.completed : false;
+        const val = activeD ? activeD.val : '';
+        const altUsed = activeD ? activeD.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || d.name);
+        const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
+
+        let optionsHtml = '';
+        for (let j = 0; j < d.alternatives.length; j++) {
+            const a = d.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        decompressHtml += `
+            <div class="card">
+                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
+                    <h3 id="name-${d.id}">${displayName}</h3>
+                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
+                </div>
+                ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
+                <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
+                    <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
+                        <option value="">Default</option>
+                        ${optionsHtml}
+                    </select>
+                </details>
+            </div>`;
+    }
+
     c.innerHTML = `
         <div class="container"><h1>Decompress</h1>
-            ${DECOMPRESSION.map(d => {
-                const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
-                const isChecked = activeD ? activeD.completed : false;
-                const val = activeD ? activeD.val : '';
-                const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
-                const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
-
-                return `
-                <div class="card">
-                    <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                        <h3 id="name-${d.id}">${displayName}</h3>
-                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
-                    </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
-                    <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
-                            <option value="">Default</option>
-                            ${d.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
-                        </select>
-                    </details>
-                </div>`;
-            }).join('')}
+            ${decompressHtml}
             <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
@@ -384,7 +405,37 @@ function renderHistory(c) {
         s.push(sessions[i]);
     }
 
-    c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
+    let historyHtml = '';
+    if (s.length === 0) {
+        historyHtml = '<div class="card"><p>No logs yet.</p></div>';
+    } else {
+        for (let i = 0; i < s.length; i++) {
+            const x = s[i];
+
+            let warmupHtml = 'No Data';
+            if (x.warmup) {
+                warmupHtml = '';
+                for (let j = 0; j < x.warmup.length; j++) {
+                    const w = x.warmup[j];
+                    if (w.completed) {
+                        warmupHtml += `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} `;
+                    }
+                }
+            }
+
+            let exercisesHtml = '';
+            for (let j = 0; j < x.exercises.length; j++) {
+                const e = x.exercises[j];
+                const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
+                const displayName = Sanitizer.sanitizeString(rawName);
+                exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
+            }
+
+            const decompressStatus = Array.isArray(x.decompress) ?
+                (x.decompress.every(d => d.completed) ? 'Full Session' : 'Partial') :
+                (x.decompress?.completed ? 'Completed' : 'Skipped');
+
+            historyHtml += `
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
@@ -393,21 +444,21 @@ function renderHistory(c) {
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">WARMUP</div>
-                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${x.warmup ? x.warmup.map(w => w.completed ? `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} ` : '').join('') : 'No Data'}</div>
+                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
-                ${x.exercises.map(e => {
-                     // Name Display Fix
-                     const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
-                     const displayName = Sanitizer.sanitizeString(rawName);
-                     return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
-                }).join('')}
+                ${exercisesHtml}
                 <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
                 <div class="text-xs">
                     Cardio: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
-                    Decompress: ${Array.isArray(x.decompress) ? (x.decompress.every(d=>d.completed) ? 'Full Session' : 'Partial') : (x.decompress?.completed ? 'Completed' : 'Skipped')}
+                    Decompress: ${decompressStatus}
                 </div>
             </details>
-        </div>`).join('')}
+        </div>`;
+        }
+    }
+
+    c.innerHTML = `<div class="container"><h1>History</h1>
+        ${historyHtml}
         ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
         </div>`;
 

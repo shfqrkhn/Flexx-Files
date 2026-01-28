@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.19 (Enhancement)
+**Version:** 3.9.20 (Optimization)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -844,7 +844,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.19';
+export const APP_VERSION = '3.9.20';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -907,6 +907,7 @@ export const ERROR_MESSAGES = {
     EXPORT_FAILED: 'Failed to export data. Please try again.',
     LOAD_FAILED: 'Failed to load sessions data'
 };
+
 ```
 
 ## js/core.js
@@ -930,6 +931,7 @@ export const Storage = {
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
     _pendingWrite: null,
+    _pendingWriteType: null, // 'timeout' or 'idle'
     _isCorrupted: false,
 
     /**
@@ -1197,7 +1199,7 @@ export const Storage = {
             // Update cache and storage with the new array
             this._sessionCache = newSessions;
 
-            // Optimization: Non-blocking I/O
+            // Optimization: Non-blocking I/O (Async Persistence)
             // Defer strict persistence to allow UI thread to unblock immediately
             this.schedulePersistence();
 
@@ -1226,11 +1228,13 @@ export const Storage = {
             }
 
             // Optimization: Create new array via splice to avoid O(N) filter callbacks
-            const newSessions = [...sessions];
+            const newSessions = sessions.slice();
             newSessions.splice(index, 1);
 
             this._sessionCache = newSessions; // Update cache
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(newSessions));
+
+            // Optimization: Non-blocking I/O
+            this.schedulePersistence();
             return true;
         } catch (e) {
             console.error('Failed to delete session:', e);
@@ -1311,18 +1315,37 @@ export const Storage = {
 
     schedulePersistence() {
         if (this._pendingWrite) {
-            clearTimeout(this._pendingWrite);
+            if (this._pendingWriteType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(this._pendingWrite);
+            } else {
+                clearTimeout(this._pendingWrite);
+            }
         }
-        // Defer to next tick to allow UI update
-        this._pendingWrite = setTimeout(() => {
-            this.flushPersistence();
-        }, 0);
+
+        // Use requestIdleCallback if available for better non-blocking behavior
+        if (typeof window.requestIdleCallback === 'function') {
+            this._pendingWriteType = 'idle';
+            this._pendingWrite = window.requestIdleCallback(() => {
+                this.flushPersistence();
+            }, { timeout: 2000 }); // Force write after 2s if no idle time
+        } else {
+            this._pendingWriteType = 'timeout';
+            // Defer to next tick to allow UI update
+            this._pendingWrite = setTimeout(() => {
+                this.flushPersistence();
+            }, 0);
+        }
     },
 
     flushPersistence() {
         if (this._pendingWrite) {
-            clearTimeout(this._pendingWrite);
+            if (this._pendingWriteType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(this._pendingWrite);
+            } else {
+                clearTimeout(this._pendingWrite);
+            }
             this._pendingWrite = null;
+            this._pendingWriteType = null;
         }
 
         if (!this._sessionCache) return;
@@ -1368,56 +1391,219 @@ export const Calculator = {
     _lastSessions: null,
     _lastLookup: null,
 
-    _ensureCache(sessions) {
-        if (this._cache.has(sessions)) return this._cache.get(sessions);
+    _cloneLookup(lookup) {
+        const newLookup = new Map();
+        for (const [key, val] of lookup) {
+            newLookup.set(key, {
+                last: val.last,
+                lastCompleted: val.lastCompleted,
+                recent: [...val.recent] // Copy array to prevent shared mutation
+            });
+        }
+        return newLookup;
+    },
 
-        // Optimization: Check for incremental update (Append)
-        // Detect if this session array is a direct append to the last processed array
-        if (this._lastSessions && this._lastLookup &&
-            sessions.length === this._lastSessions.length + 1 &&
-            sessions[0] === this._lastSessions[0] &&
-            sessions[this._lastSessions.length - 1] === this._lastSessions[this._lastSessions.length - 1]) {
+    _applySession(lookup, session) {
+        for (const ex of session.exercises) {
+            if (ex.skipped) continue;
 
-            const newLookup = new Map();
-            // Shallow clone entries, deep clone mutable 'recent' arrays
-            for (const [key, val] of this._lastLookup) {
-                newLookup.set(key, {
-                    last: val.last,
-                    lastCompleted: val.lastCompleted,
-                    recent: [...val.recent]
-                });
+            const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+            if (!lookup.has(key)) {
+                lookup.set(key, { last: null, lastCompleted: null, recent: [] });
+            }
+            const entry = lookup.get(key);
+
+            // Add to recent history (newest at start)
+            entry.recent.unshift(ex);
+            if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
+                entry.recent.pop();
             }
 
-            // Process only the new session (at the end)
-            const session = sessions[sessions.length - 1];
-            for (const ex of session.exercises) {
-                if (ex.skipped || ex.usingAlternative) continue;
+            // Update last (this is the newest)
+            entry.last = ex;
 
-                if (!newLookup.has(ex.id)) {
-                    newLookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
-                }
-                const entry = newLookup.get(ex.id);
+            // Update lastCompleted
+            if (ex.completed) {
+                entry.lastCompleted = ex;
+            }
+        }
+    },
 
-                // Add to recent history
-                // Since 'recent' is ordered [newest, ..., oldest], we unshift.
-                entry.recent.unshift(ex);
-                if (entry.recent.length > CONST.STALL_DETECTION_SESSIONS) {
-                    entry.recent.pop();
-                }
+    _rollbackSession(lookup, session, historySessions) {
+        // Rollback is trickier because we need to undo state changes.
+        // historySessions is the FULL history array from which we are removing the last session.
+        // We use it to refill 'recent' buffer and find previous 'lastCompleted' if needed.
 
-                // Update last (this is the newest)
-                entry.last = ex;
+        // We need to know which exercises were in the session we are removing
+        for (const ex of session.exercises) {
+            if (ex.skipped) continue;
 
-                // Update lastCompleted
-                if (ex.completed) {
-                    entry.lastCompleted = ex;
+            const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+            const entry = lookup.get(key);
+            if (!entry) continue;
+
+            // 1. Remove from 'recent'
+            // The removed exercise should be at index 0 of recent
+            if (entry.recent.length > 0 && entry.recent[0] === ex) {
+                entry.recent.shift();
+
+                // Refill 'recent' from history if it dropped below threshold
+                if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
+                    this._scanBackwardsForRecent(entry, key, historySessions, historySessions.length - 2);
                 }
             }
 
-            this._cache.set(sessions, newLookup);
-            this._lastSessions = sessions;
-            this._lastLookup = newLookup;
-            return newLookup;
+            // 2. Update 'last'
+            entry.last = entry.recent.length > 0 ? entry.recent[0] : null;
+
+            // 3. Update 'lastCompleted'
+            if (entry.lastCompleted === ex) {
+                const recentCompleted = entry.recent.find(e => e.completed);
+                if (recentCompleted) {
+                    entry.lastCompleted = recentCompleted;
+                } else {
+                    entry.lastCompleted = this._scanBackwardsForCompleted(key, historySessions, historySessions.length - 2);
+                }
+            }
+        }
+    },
+
+    _scanBackwardsForRecent(entry, key, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            if (entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) break;
+
+            const session = sessions[i];
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex) {
+                if (!entry.recent.includes(ex)) {
+                    entry.recent.push(ex);
+                }
+            }
+        }
+    },
+
+    _scanBackwardsForCompleted(key, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            const session = sessions[i];
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex && ex.completed) {
+                return ex;
+            }
+        }
+        return null;
+    },
+
+    _ensureCache(sessions, targetId = null) {
+        if (this._cache.has(sessions)) {
+            const lookup = this._cache.get(sessions);
+            // If targetId is requested but missing, and the cache was built using a partial scan,
+            // we must force a full scan to find the missing target.
+            if (targetId && !lookup.has(targetId) && lookup._isPartial) {
+                // Fall through to full scan logic (bypass return)
+            } else {
+                return lookup;
+            }
+        }
+
+        // Optimization: Content Equality Check
+        // If array identity differs but content is identical (same session objects in same order),
+        // we can reuse the cached lookup.
+        if (this._lastSessions && sessions.length === this._lastSessions.length) {
+            let match = true;
+            // Iterate backwards as changes are usually at the end
+            for (let i = sessions.length - 1; i >= 0; i--) {
+                if (sessions[i] !== this._lastSessions[i]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                // Check for partial cache validity with targetId
+                if (targetId && !this._lastLookup.has(targetId) && this._lastLookup._isPartial) {
+                    // Fall through to full scan
+                } else {
+                    this._cache.set(sessions, this._lastLookup);
+                    this._lastSessions = sessions; // Update reference to newest array
+                    return this._lastLookup;
+                }
+            }
+        }
+
+        // Optimization: Incremental Update
+        if (this._lastSessions && this._lastLookup) {
+            const oldLen = this._lastSessions.length;
+            const newLen = sessions.length;
+
+            // If the last lookup was partial and we need a target it doesn't have,
+            // we cannot use incremental update safely without complex logic.
+            // Simpler to just fall back to full scan.
+            const forceFullScan = targetId && !this._lastLookup.has(targetId) && this._lastLookup._isPartial;
+
+            if (!forceFullScan) {
+                // Case 1: Append (newLen === oldLen + 1)
+                if (newLen === oldLen + 1 &&
+                    (oldLen === 0 || (sessions[0] === this._lastSessions[0] && sessions[oldLen - 1] === this._lastSessions[oldLen - 1]))) {
+
+                    const newLookup = this._cloneLookup(this._lastLookup);
+                    newLookup._isPartial = this._lastLookup._isPartial;
+                    this._applySession(newLookup, sessions[newLen - 1]);
+
+                    this._cache.set(sessions, newLookup);
+                    this._lastSessions = sessions;
+                    this._lastLookup = newLookup;
+                    return newLookup;
+                }
+
+                // Case 2: Replace Last (newLen === oldLen)
+                // e.g. User updated the current workout
+                if (newLen === oldLen && oldLen > 0 &&
+                    (sessions[0] === this._lastSessions[0] &&
+                     (oldLen === 1 || sessions[oldLen - 2] === this._lastSessions[oldLen - 2]))) {
+
+                    const newLookup = this._cloneLookup(this._lastLookup);
+                    newLookup._isPartial = this._lastLookup._isPartial;
+                    this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+                    this._applySession(newLookup, sessions[newLen - 1]);
+
+                    this._cache.set(sessions, newLookup);
+                    this._lastSessions = sessions;
+                    this._lastLookup = newLookup;
+                    return newLookup;
+                }
+
+                // Case 3: Remove Last (newLen === oldLen - 1)
+                // e.g. User deleted the last workout
+                if (newLen === oldLen - 1 && newLen > 0 &&
+                     (sessions[0] === this._lastSessions[0] && sessions[newLen - 1] === this._lastSessions[newLen - 1])) {
+
+                     const newLookup = this._cloneLookup(this._lastLookup);
+                     newLookup._isPartial = this._lastLookup._isPartial;
+                     this._rollbackSession(newLookup, this._lastSessions[oldLen - 1], this._lastSessions);
+
+                     this._cache.set(sessions, newLookup);
+                     this._lastSessions = sessions;
+                     this._lastLookup = newLookup;
+                     return newLookup;
+                }
+
+                // Case 4: Remove Last to Empty (1 -> 0)
+                if (newLen === 0 && oldLen === 1) {
+                     const newLookup = new Map();
+                     newLookup._isPartial = false; // Empty is complete
+                     this._cache.set(sessions, newLookup);
+                     this._lastSessions = sessions;
+                     this._lastLookup = newLookup;
+                     return newLookup;
+                }
+            }
         }
 
         // Optimization: Iterate backwards and stop early once we found data for all current exercises.
@@ -1429,21 +1615,26 @@ export const Calculator = {
 
         const requiredIds = new Set(EXERCISES.map(e => e.id));
         const fullyResolved = new Set();
+        let brokeEarly = false;
 
         for (let i = sessions.length - 1; i >= 0; i--) {
             // Stop if we have found everything we need
-            if (fullyResolved.size === requiredIds.size) {
+            // AND if a specific target was requested, we found it too.
+            const targetFound = !targetId || fullyResolved.has(targetId);
+            if (fullyResolved.size >= requiredIds.size && targetFound) {
+                brokeEarly = true;
                 break;
             }
 
             const session = sessions[i];
             for (const ex of session.exercises) {
-                if (ex.skipped || ex.usingAlternative) continue;
+                if (ex.skipped) continue;
 
-                if (!lookup.has(ex.id)) {
-                    lookup.set(ex.id, { last: null, lastCompleted: null, recent: [] });
+                const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
+                if (!lookup.has(key)) {
+                    lookup.set(key, { last: null, lastCompleted: null, recent: [] });
                 }
-                const entry = lookup.get(ex.id);
+                const entry = lookup.get(key);
 
                 // Add to recent history if we haven't hit the limit yet
                 if (entry.recent.length < CONST.STALL_DETECTION_SESSIONS) {
@@ -1463,19 +1654,21 @@ export const Calculator = {
                 // Note: We need lastCompleted to calculate progression.
                 // We need recent to detect stalls.
                 // If we have both, we can stop searching for this exercise.
-                if (requiredIds.has(ex.id) && !fullyResolved.has(ex.id)) {
+                const isRequired = requiredIds.has(key) || key === targetId;
+                if (isRequired && !fullyResolved.has(key)) {
                     // We are resolved if:
                     // 1. We have found a completed entry (so we know the last successful weight)
                     // 2. We have filled the recent buffer (so we can detect stalls)
                     // Note: If the user has NEVER completed the exercise, we will scan full history.
                     // This is expected and necessary to find the last completion (which doesn't exist).
                     if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) {
-                        fullyResolved.add(ex.id);
+                        fullyResolved.add(key);
                     }
                 }
             }
         }
 
+        lookup._isPartial = brokeEarly;
         this._cache.set(sessions, lookup);
         this._lastSessions = sessions;
         this._lastLookup = lookup;
@@ -1547,7 +1740,7 @@ export const Calculator = {
     },
 
     detectStall(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
 
         // If we don't have enough history, it's not a stall
@@ -1559,13 +1752,13 @@ export const Calculator = {
     },
 
     getLastExercise(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.last : null;
     },
 
     getLastCompletedExercise(exerciseId, sessions) {
-        const cache = this._ensureCache(sessions);
+        const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.lastCompleted : null;
     },
@@ -1576,7 +1769,10 @@ export const Calculator = {
             const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
             if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
 
-            const ex = s.exercises.find(e => e.id === exerciseId && !e.skipped && !e.usingAlternative);
+            const ex = s.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === exerciseId && !e.skipped;
+            });
             if (ex) return ex;
         }
         return null;
@@ -1877,22 +2073,22 @@ function renderRecovery(c) {
 }
 
 function renderWarmup(c) {
-    c.innerHTML = `
-        <div class="container">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
-                <h1>Warmup</h1>
-                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
-            </div>
-            <div class="card">
-        ${WARMUP.map(w => {
-            const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
-            const isChecked = activeW ? activeW.completed : false;
-            const altUsed = activeW ? activeW.altUsed : '';
-            const displayName = Sanitizer.sanitizeString(altUsed || w.name);
-            // Note: video link needs to handle alt logic if already selected (similar to swapAlt)
-            const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
+    let warmupHtml = '';
+    for (let i = 0; i < WARMUP.length; i++) {
+        const w = WARMUP[i];
+        const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+        const isChecked = activeW ? activeW.completed : false;
+        const altUsed = activeW ? activeW.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || w.name);
+        const vidUrl = altUsed && w.altLinks?.[altUsed] ? w.altLinks[altUsed] : w.video;
 
-            return `
+        let optionsHtml = '';
+        for (let j = 0; j < w.alternatives.length; j++) {
+            const a = w.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        warmupHtml += `
             <div style="margin-bottom:1.5rem; border-bottom:1px solid #333; padding-bottom:1rem;">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <label class="checkbox-wrapper" style="margin:0; padding:0; background:none; border:none; width:auto; cursor:pointer" for="w-${w.id}">
@@ -1904,12 +2100,23 @@ function renderWarmup(c) {
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
                         <option value="">${w.name}</option>
-                        ${w.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
+                        ${optionsHtml}
                     </select>
                 </details>
             </div>`;
-        }).join('')}
-        </div><button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button></div>`;
+    }
+
+    c.innerHTML = `
+        <div class="container">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
+                <h1>Warmup</h1>
+                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+            </div>
+            <div class="card">
+                ${warmupHtml}
+            </div>
+            <button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button>
+        </div>`;
 }
 
 function renderLifting(c) {
@@ -1936,7 +2143,9 @@ function renderLifting(c) {
                     const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
 
                     const w = activeEx ? activeEx.weight : Calculator.getRecommendedWeight(ex.id, State.recovery, sessions);
-                    const last = Calculator.getLastCompletedExercise(ex.id, sessions);
+                    // Name Display Fix: Pass actual name (alternative if used) for history lookup
+                    const lookupName = hasAlt ? activeEx.altName : ex.id;
+                    const last = Calculator.getLastCompletedExercise(lookupName, sessions);
                     const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
 
                     // Optimization: Use for loop to avoid garbage collection pressure from Array.from
@@ -1954,7 +2163,7 @@ function renderLifting(c) {
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
-                            <div class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
+                            <div id="last-${ex.id}" class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
                         <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
@@ -1998,33 +2207,43 @@ function renderCardio(c) {
 }
 
 function renderDecompress(c) {
+    let decompressHtml = '';
+    for (let i = 0; i < DECOMPRESSION.length; i++) {
+        const d = DECOMPRESSION[i];
+        const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+        const isChecked = activeD ? activeD.completed : false;
+        const val = activeD ? activeD.val : '';
+        const altUsed = activeD ? activeD.altUsed : '';
+        const displayName = Sanitizer.sanitizeString(altUsed || d.name);
+        const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
+
+        let optionsHtml = '';
+        for (let j = 0; j < d.alternatives.length; j++) {
+            const a = d.alternatives[j];
+            optionsHtml += `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`;
+        }
+
+        decompressHtml += `
+            <div class="card">
+                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
+                    <h3 id="name-${d.id}">${displayName}</h3>
+                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
+                </div>
+                ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
+                <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
+                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
+                    <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
+                        <option value="">Default</option>
+                        ${optionsHtml}
+                    </select>
+                </details>
+            </div>`;
+    }
+
     c.innerHTML = `
         <div class="container"><h1>Decompress</h1>
-            ${DECOMPRESSION.map(d => {
-                const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
-                const isChecked = activeD ? activeD.completed : false;
-                const val = activeD ? activeD.val : '';
-                const altUsed = activeD ? activeD.altUsed : '';
-                const displayName = Sanitizer.sanitizeString(altUsed || d.name);
-                const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
-
-                return `
-                <div class="card">
-                    <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                        <h3 id="name-${d.id}">${displayName}</h3>
-                        <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
-                    </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" oninput="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
-                    <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
-                    <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
-                        <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
-                            <option value="">Default</option>
-                            ${d.alternatives.map(a => `<option value="${a}" ${altUsed === a ? 'selected' : ''}>${a}</option>`).join('')}
-                        </select>
-                    </details>
-                </div>`;
-            }).join('')}
+            ${decompressHtml}
             <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
         </div>`;
 }
@@ -2041,7 +2260,37 @@ function renderHistory(c) {
         s.push(sessions[i]);
     }
 
-    c.innerHTML = `<div class="container"><h1>History</h1>${s.length===0?'<div class="card"><p>No logs yet.</p></div>':s.map(x=>`
+    let historyHtml = '';
+    if (s.length === 0) {
+        historyHtml = '<div class="card"><p>No logs yet.</p></div>';
+    } else {
+        for (let i = 0; i < s.length; i++) {
+            const x = s[i];
+
+            let warmupHtml = 'No Data';
+            if (x.warmup) {
+                warmupHtml = '';
+                for (let j = 0; j < x.warmup.length; j++) {
+                    const w = x.warmup[j];
+                    if (w.completed) {
+                        warmupHtml += `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} `;
+                    }
+                }
+            }
+
+            let exercisesHtml = '';
+            for (let j = 0; j < x.exercises.length; j++) {
+                const e = x.exercises[j];
+                const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
+                const displayName = Sanitizer.sanitizeString(rawName);
+                exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
+            }
+
+            const decompressStatus = Array.isArray(x.decompress) ?
+                (x.decompress.every(d => d.completed) ? 'Full Session' : 'Partial') :
+                (x.decompress?.completed ? 'Completed' : 'Skipped');
+
+            historyHtml += `
         <div class="card">
             <div class="flex-row" style="justify-content:space-between">
                 <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
@@ -2050,21 +2299,21 @@ function renderHistory(c) {
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
                 <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">WARMUP</div>
-                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${x.warmup ? x.warmup.map(w => w.completed ? `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} ` : '').join('') : 'No Data'}</div>
+                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
                 <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
-                ${x.exercises.map(e => {
-                     // Name Display Fix
-                     const rawName = e.altName || e.name || exerciseMap.get(e.id)?.name || e.id;
-                     const displayName = Sanitizer.sanitizeString(rawName);
-                     return `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`
-                }).join('')}
+                ${exercisesHtml}
                 <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
                 <div class="text-xs">
                     Cardio: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
-                    Decompress: ${Array.isArray(x.decompress) ? (x.decompress.every(d=>d.completed) ? 'Full Session' : 'Partial') : (x.decompress?.completed ? 'Completed' : 'Skipped')}
+                    Decompress: ${decompressStatus}
                 </div>
             </details>
-        </div>`).join('')}
+        </div>`;
+        }
+    }
+
+    c.innerHTML = `<div class="container"><h1>History</h1>
+        ${historyHtml}
         ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
         </div>`;
 
@@ -2328,6 +2577,26 @@ window.swapAlt = (id) => {
                 if (ex) {
                     ex.usingAlternative = !!sel;
                     ex.altName = sel;
+
+                    // Update recommended weight and stats for the new selection
+                    const target = sel || ex.id;
+                    const sessions = Storage.getSessions();
+
+                    // Update weight in state
+                    ex.weight = Calculator.getRecommendedWeight(target, State.recovery, sessions);
+
+                    // Update UI elements
+                    const inputEl = document.getElementById(`w-${id}`);
+                    if (inputEl) inputEl.value = ex.weight;
+
+                    const plateEl = document.getElementById(`pl-${id}`);
+                    if (plateEl) plateEl.textContent = `${Calculator.getPlateLoad(ex.weight)} / side`;
+
+                    const lastEl = document.getElementById(`last-${id}`);
+                    if (lastEl) {
+                        const last = Calculator.getLastCompletedExercise(target, sessions);
+                        lastEl.textContent = last ? `Last: ${last.weight} lbs` : 'First Session';
+                    }
                 }
             } else if (State.phase === 'warmup') {
                 const w = State.activeSession.warmup.find(e => e.id === id);
@@ -2562,7 +2831,7 @@ const ChartCache = {
         const newIndex = new Map();
         for (const [id, val] of oldIndex) {
             newIndex.set(id, {
-                data: [...val.data],
+                data: val.data, // Shared reference (Copy-On-Write)
                 minVal: val.minVal,
                 maxVal: val.maxVal
             });
@@ -2581,6 +2850,9 @@ const ChartCache = {
 
             if (!ex.usingAlternative) {
                 const entry = index.get(ex.id);
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const v = ex.weight;
                 entry.data.push({ d: new Date(session.date), v });
                 if (v < entry.minVal) entry.minVal = v;
@@ -2601,6 +2873,9 @@ const ChartCache = {
             const lastPoint = entry.data[entry.data.length - 1];
             // Compare timestamps
             if (new Date(session.date).getTime() === lastPoint.d.getTime()) {
+                // Copy-On-Write: Clone array before mutation
+                entry.data = [...entry.data];
+
                 const popped = entry.data.pop();
 
                 if (popped.v === entry.minVal || popped.v === entry.maxVal) {
@@ -2953,6 +3228,7 @@ const Logger = {
     logs: [],
     maxLogs: 500,
     errorCache: null,
+    _pendingWrite: null,
 
     setLevel(level) {
         this.level = LOG_LEVELS[level] || LOG_LEVELS.INFO;
@@ -3014,22 +3290,36 @@ const Logger = {
 
             // SECURITY: Strip stack traces before persisting to localStorage (Sentinel)
             // Clone entry to avoid modifying the in-memory log
-            const safeEntry = JSON.parse(JSON.stringify(logEntry));
+            // Optimization: Manual shallow copy instead of expensive JSON.parse(JSON.stringify)
+            const safeEntry = {
+                level: logEntry.level,
+                message: Sanitizer.sanitizeString(logEntry.message),
+                timestamp: logEntry.timestamp,
+                url: logEntry.url,
+                userAgent: logEntry.userAgent
+            };
 
-            // Sanitize string properties to prevent stored XSS
-            safeEntry.message = Sanitizer.sanitizeString(safeEntry.message);
-            if (safeEntry.context) {
-                if (safeEntry.context.stack) {
-                    delete safeEntry.context.stack;
-                }
-                if (safeEntry.context.error && typeof safeEntry.context.error === 'object') {
-                    if (safeEntry.context.error.stack) delete safeEntry.context.error.stack;
-                }
-                for (const key in safeEntry.context) {
-                    if (typeof safeEntry.context[key] === 'string') {
-                        safeEntry.context[key] = Sanitizer.sanitizeString(safeEntry.context[key]);
+            if (logEntry.context) {
+                const safeContext = {};
+                for (const key in logEntry.context) {
+                    if (key === 'stack') continue;
+
+                    const value = logEntry.context[key];
+
+                    if (key === 'error' && value && typeof value === 'object') {
+                        const safeError = {};
+                        for (const errKey in value) {
+                            if (errKey === 'stack') continue;
+                            safeError[errKey] = value[errKey];
+                        }
+                        safeContext[key] = safeError;
+                    } else if (typeof value === 'string') {
+                        safeContext[key] = Sanitizer.sanitizeString(value);
+                    } else {
+                        safeContext[key] = value;
                     }
                 }
+                safeEntry.context = safeContext;
             }
 
             this.errorCache.push(safeEntry);
@@ -3037,9 +3327,27 @@ const Logger = {
             if (this.errorCache.length > 50) {
                 this.errorCache.shift();
             }
-            localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
+
+            // Optimization: Batch writes to localStorage
+            if (this._pendingWrite) clearTimeout(this._pendingWrite);
+            this._pendingWrite = setTimeout(() => this.flushErrors(), 1000);
+
         } catch (e) {
             console.error('Failed to persist error:', e);
+        }
+    },
+
+    flushErrors() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+        if (this.errorCache) {
+            try {
+                localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
+            } catch (e) {
+                console.error('Failed to flush errors:', e);
+            }
         }
     },
 
@@ -3233,6 +3541,10 @@ export const Observability = {
         ErrorTracker.init();
         PerformanceMonitor.init();
         BatteryMonitor.init();
+
+        // Ensure errors are flushed on page unload
+        window.addEventListener('beforeunload', () => Logger.flushErrors());
+
         Logger.info('Observability system initialized', { version: APP_VERSION });
     },
 
@@ -3245,6 +3557,7 @@ export const Observability = {
 
 // Export individual modules for direct access
 export { Logger, Metrics, Analytics, ErrorTracker, PerformanceMonitor, BatteryMonitor };
+
 ```
 
 ## js/accessibility.js
@@ -3660,6 +3973,7 @@ export const Accessibility = {
 };
 
 export default Accessibility;
+
 ```
 
 ## js/security.js
@@ -3686,6 +4000,72 @@ const SANITIZE_MAP = {
     '/': '&#x2F;'
 };
 const SANITIZE_REGEX = /[<>"'\/]/g;
+
+/**
+ * Internal recursive sanitizer that mimics JSON.parse(JSON.stringify(x))
+ * but avoids the overhead of serialization and parsing.
+ */
+function recursiveSanitize(data) {
+    if (data === undefined || typeof data === 'function' || typeof data === 'symbol') {
+        return undefined;
+    }
+
+    if (data === null) {
+        return null;
+    }
+
+    if (typeof data === 'bigint') {
+        throw new TypeError('Do not know how to serialize a BigInt');
+    }
+
+    if (typeof data !== 'object') {
+        if (typeof data === 'number') {
+             if (Number.isNaN(data) || !Number.isFinite(data)) {
+                return null;
+            }
+            return data;
+        }
+        return data;
+    }
+
+    if (typeof data.toJSON === 'function') {
+        return recursiveSanitize(data.toJSON());
+    }
+
+    if (data instanceof Number) {
+         const val = data.valueOf();
+         if (Number.isNaN(val) || !Number.isFinite(val)) {
+            return null;
+        }
+        return val;
+    }
+    if (data instanceof String) {
+        return data.valueOf();
+    }
+    if (data instanceof Boolean) {
+        return data.valueOf();
+    }
+
+    if (Array.isArray(data)) {
+        const arr = new Array(data.length);
+        for (let i = 0; i < data.length; i++) {
+            const val = recursiveSanitize(data[i]);
+            arr[i] = (val === undefined) ? null : val;
+        }
+        return arr;
+    }
+
+    const obj = {};
+    for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+            const val = recursiveSanitize(data[key]);
+            if (val !== undefined) {
+                obj[key] = val;
+            }
+        }
+    }
+    return obj;
+}
 
 export const Sanitizer = {
     /**
@@ -3800,9 +4180,8 @@ export const Sanitizer = {
      */
     sanitizeJSON(data) {
         try {
-            // Parse and re-stringify to remove functions and undefined values
-            const parsed = JSON.parse(JSON.stringify(data));
-            return parsed;
+            // Optimized recursive copy to remove functions/undefined (faster than JSON parse/stringify)
+            return recursiveSanitize(data);
         } catch (e) {
             Logger.warn('Failed to sanitize JSON', { error: e.message });
             return null;
@@ -4128,6 +4507,7 @@ export const AuditLog = {
     logs: [],
     persistedLogs: null,
     maxLogs: 100,
+    _pendingWrite: null,
 
     /**
      * Log security-relevant events
@@ -4183,9 +4563,25 @@ export const AuditLog = {
                 this.persistedLogs.shift();
             }
 
-            localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
+            // Optimization: Batch writes to localStorage
+            if (this._pendingWrite) clearTimeout(this._pendingWrite);
+            this._pendingWrite = setTimeout(() => this.flushLogs(), 1000);
         } catch (e) {
             Logger.error('Failed to persist audit log', { error: e.message });
+        }
+    },
+
+    flushLogs() {
+        if (this._pendingWrite) {
+            clearTimeout(this._pendingWrite);
+            this._pendingWrite = null;
+        }
+        if (this.persistedLogs) {
+            try {
+                localStorage.setItem(`${STORAGE_PREFIX}audit_log`, JSON.stringify(this.persistedLogs));
+            } catch (e) {
+                Logger.error('Failed to flush audit logs', { error: e.message });
+            }
         }
     },
 
@@ -4203,6 +4599,7 @@ export const AuditLog = {
     },
 
     clear() {
+        if (this._pendingWrite) clearTimeout(this._pendingWrite);
         this.logs = [];
         this.persistedLogs = null;
         localStorage.removeItem(`${STORAGE_PREFIX}audit_log`);
@@ -4216,6 +4613,9 @@ export const Security = {
         // Log initialization
         AuditLog.log('security_init', { version: APP_VERSION });
         Logger.info('Security system initialized');
+
+        // Ensure flush on unload
+        window.addEventListener('beforeunload', () => AuditLog.flushLogs());
     },
 
     Sanitizer,
@@ -4629,6 +5029,7 @@ export default {
     NumberFormatter,
     Timezone
 };
+
 ```
 
 ## sw.js
@@ -4636,7 +5037,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.19';
+const CACHE_NAME = 'flexx-v3.9.20';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
