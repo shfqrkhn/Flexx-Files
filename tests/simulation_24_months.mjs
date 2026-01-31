@@ -18,7 +18,7 @@ global.window = {
     cancelIdleCallback: () => {},
     setTimeout: (cb) => cb(),
     clearTimeout: () => {},
-    location: { reload: () => {} }
+    location: { reload: () => {}, pathname: '/test', href: 'http://localhost/test' }
 };
 
 global.console = {
