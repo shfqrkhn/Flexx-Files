@@ -314,6 +314,7 @@ function renderLifting(c) {
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
+                            <div class="text-xs" style="opacity:0.8; margin-bottom:0.25rem">${ex.sets} sets × ${ex.reps} reps</div>
                             <div id="last-${ex.id}" class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
                         <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
@@ -350,7 +351,8 @@ function renderCardio(c) {
 
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(cfg.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${cfg.name}">🎥</a></div>
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(cfg.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${cfg.name}">🎥</a></div>
+            <div class="text-xs" style="opacity:0.8; margin-bottom:1rem">5 minutes • Moderate steady-state effort</div>
             <select id="cardio-type" onchange="window.swapCardioLink(); window.updateCardio()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}" ${o.name === selectedType ? 'selected' : ''}>${o.name}</option>`).join('')}</select>
             <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
             <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done" ${isCompleted ? 'checked' : ''} onchange="window.updateCardio()"><span>Completed</span></label>
@@ -376,11 +378,12 @@ function renderDecompress(c) {
 
         decompressHtml += `
             <div class="card">
-                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
+                <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
                     <h3 id="name-${d.id}">${displayName}</h3>
                     <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <div class="text-xs" style="opacity:0.8; margin-bottom:0.75rem">${d.duration}</div>
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : ''}
                 <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
                 <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                     <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
