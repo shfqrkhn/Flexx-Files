@@ -1,256 +1,201 @@
-# Complete Strength Protocol
+# THE COMPLETE STRENGTH PROTOCOL
 
-**Version:** 3.9.26
-**Application:** Flexx Files
-**Architecture:** Offline-First PWA
+**Maximum Results • Minimum Time • Zero Compromise**
 
 ---
 
-## Overview
+## 1. PROTOCOL OVERVIEW
 
-The Complete Strength Protocol is a structured, full-body strength training program designed for maximum efficiency and minimal cognitive overhead. It enforces strict hygiene standards (no floor contact), automatic progression, recovery-based scaling, and built-in deload cycles.
+### The "Filthy Floor" Standard
+To maximize hygiene and focus, this protocol strictly enforces **Zero Floor Contact**. All movements originally performed on the floor (Push-ups, Core, Stretching) have been upgraded to Standing, Bench, or Wall variants.
 
-### Core Principles
-
+### Key Parameters
 - **Schedule:** 3 days/week (e.g., Mon/Wed/Fri)
-- **Duration:** 65 minutes hard cap
-- **Rest Between Sessions:** 48-72 hours minimum
-- **Hygiene Protocol:** All exercises are Standing, Seated, or Bench-based (no floor contact)
+- **Time:** 65 Minutes hard cap
+- **Spacing:** 48–72 hours rest required between sessions
+- **Coverage:** 7 compound movements hitting every muscle group
+
+### Movement Coverage Table
+
+| Category | Primary Muscles | Action Profile |
+|----------|----------------|----------------|
+| **Legs** | Quads, Hamstrings, Glutes, Calves | Knee Bend + Hinge + Isolation |
+| **Back** | Lats, Traps, Spinal Erectors | Vertical Pull + Horizontal Pull + Carry |
+| **Chest** | Pectorals | Horizontal Push |
+| **Shoulders** | Deltoids (Front/Side/Rear) | Vertical Push + Stabilizers |
+| **Arms** | Biceps, Triceps, Grip | Compound Engagement + Carry |
 
 ---
 
-## The 7 Pillars of Movement
+## 2. RULES OF ENGAGEMENT
 
-| Pillar | Category | Primary Target |
-|--------|----------|----------------|
-| 1. Hinge | Deadlifts | Posterior Chain |
-| 2. Squat | Knee Dominant | Quads |
-| 3. Push (Vertical) | Overhead Press | Shoulders |
-| 4. Push (Horizontal) | Bench Press | Chest/Triceps |
-| 5. Pull | Rows/Chins | Back/Biceps |
-| 6. Carry | Farmers Walk | Core/Grip |
-| 7. Corrective | Rotational/Anti-Rotational | Injury Prevention |
+### A. Recovery Logic (The "Traffic Light" System)
 
----
+Assess yourself immediately before training.
 
-## The 4-Phase Workout System
+#### 🟢 GREEN: 7+ hours sleep, no pain
+- **Action:** Train at scheduled weights
 
-### Phase 1: Warmup (5 minutes)
-Raise body temperature, prime joints, and prepare the nervous system.
+#### 🟡 YELLOW: 5–6 hours sleep, general stiffness/fatigue
+- **Action:** Reduce all weights by 10% (Weight × 0.9)
 
-| Exercise | Reps | Video Reference |
-|----------|------|-----------------|
-| Wall Thoracic Rotations | 10/side | [Form Guide](https://www.youtube.com/results?search_query=standing+thoracic+rotation+against+wall) |
-| Kettlebell Swings | 20 | [Form Guide](https://www.youtube.com/results?search_query=russian+kettlebell+swing+form) |
-| Standing KB Halo | 10/direction | [Form Guide](https://www.youtube.com/results?search_query=standing+kettlebell+halo+exercise) |
-| Goblet Squat Prying | 10 | [Form Guide](https://www.youtube.com/results?search_query=goblet+squat+prying+stretch) |
-| Jump Rope | 100 | [Form Guide](https://www.youtube.com/results?search_query=jump+rope+basic+bounce) |
+#### 🔴 RED: <5 hours sleep, acute pain, or illness
+- **Action:** Do Not Lift. Go for a walk only
 
-**Alternatives Available:**
-- Wall Rotations: Standing Windmill, Standing T-Spine Twist
-- KB Swings: Broad Jumps, Bodyweight Good Mornings
-- KB Halo: Around the World (Plate/DB), Shoulder Dislocates (Broom)
-- Goblet Prying: Cossack Squat, Deep Squat Hold
-- Jump Rope: Jumping Jacks, High Knees
+### B. Progression Algorithm
 
-### Phase 2: Lifting (25-35 minutes)
-Heavy compound movements following the 7 Pillars.
+#### Day 1 (Calibration)
+Find a weight where you can complete 12 reps with good form but have 2 reps left in the tank (RPE 8). Stop sets at prescribed rep count.
 
-| Exercise | Category | Sets x Reps | Video Reference |
-|----------|----------|-------------|-----------------|
-| Trap Bar Deadlift | HINGE | 3 x 8 | [Form Guide](https://www.youtube.com/results?search_query=trap+bar+deadlift+form+tutorial) |
-| Goblet Squat | KNEE | 3 x 10 | [Form Guide](https://www.youtube.com/results?search_query=dumbbell+goblet+squat+form) |
-| DB Bench Press | H-PUSH | 3 x 10 | [Form Guide](https://www.youtube.com/results?search_query=dumbbell+bench+press+form) |
-| Incline DB Press | H-PUSH | 3 x 10 | [Form Guide](https://www.youtube.com/results?search_query=incline+dumbbell+press+form) |
-| Standing DB OHP | V-PUSH | 3 x 10 | [Form Guide](https://www.youtube.com/results?search_query=standing+dumbbell+overhead+press+form) |
-| Chest-Supported Row | PULL | 3 x 12 | [Form Guide](https://www.youtube.com/results?search_query=incline+bench+dumbbell+row+form) |
-| Lat Pulldown | PULL | 3 x 12 | [Form Guide](https://www.youtube.com/results?search_query=lat+pulldown+form) |
-| Farmers Walk | CARRY | 3 x 40 steps | [Form Guide](https://www.youtube.com/results?search_query=farmers+walk+dumbbell+form) |
-| Standing Calf Raises | CALVES | 3 x 15 | [Form Guide](https://www.youtube.com/results?search_query=standing+dumbbell+calf+raise+form) |
+#### Success
+Completed all sets and reps with perfect form?
+- **Action:** Add +5 lbs next session
 
-**Rest Between Sets:** 90 seconds (default)
+#### Failure
+Missed reps or broke form?
+- **Action:** Keep weight the same next session
 
-### Phase 3: Cardio (5-10 minutes)
-High intensity interval or steady state conditioning.
+#### Stall
+Failed the same weight 3 sessions in a row?
+- **Action:** Reset weight by -10%
 
-| Option | Video Reference |
-|--------|-----------------|
-| Assault Bike | [Technique](https://www.youtube.com/results?search_query=assault+bike+technique) |
-| Rower | [Technique](https://www.youtube.com/results?search_query=concept2+rowing+technique) |
-| Treadmill Incline | [Form Guide](https://www.youtube.com/results?search_query=treadmill+incline+walking+form) |
+#### Deload
+Every 6th week (regardless of performance)
+- **Action:** Use 60% of your current working weights
 
-**Default Duration:** 5 minutes
+### C. Fault Tolerance
 
-### Phase 4: Decompression (5 minutes)
-Parasympathetic reset to kickstart recovery and reduce CNS fatigue.
-
-| Exercise | Focus | Video Reference |
-|----------|-------|-----------------|
-| Dead Hang | Spinal Decompression | [Form Guide](https://www.youtube.com/results?search_query=dead+hang+form) |
-| Box Breathing (Seated) | CNS Reset | [Technique](https://www.youtube.com/results?search_query=seated+box+breathing+technique) |
-
-**Alternatives:**
-- Dead Hang: Farmers Hold (Static), Plate Pinch Hold
-- Box Breathing: Physiological Sigh, 4-7-8 Breathing
+| Scenario | Protocol |
+|----------|----------|
+| **Missed 1 Session** | Slide schedule to next day (maintain 48hr gap) |
+| **Missed 2+ Sessions** | Resume schedule; reduce weights by 10% for first session back |
+| **Gym Closed** | Execute Emergency Bodyweight Circuit (See Section 6) |
+| **Sick (Fever)** | FULL REST. Resume 24hrs after fever breaks. Reduce weights 20% |
+| **Injury** | Skip the specific aggravating exercise. Do the other 6 |
 
 ---
 
-## Progression System
+## 3. PHASE 1: WARMUP (8 MIN)
 
-### Automatic Progression
-- **+5 lbs** added on successful set completion
-- **2.5 lb** micro-loading available for finer adjustments
-- Progression tracked independently for each exercise
+Execute as a circuit. No rest.
 
-### Deload Protocol
-- **Automatic deload every 6 weeks**
-- Deload weight = **60% of max**
-- Prevents overtraining and breaks through plateaus
-
-### Stall Detection
-- Triggers after **3 consecutive failed sessions** at the same weight
-- Automatic weight reduction to **90%** on stall detection
-- Allows progression to resume from a more manageable load
-
-### Plate Math
-Standard Olympic barbell (45 lbs) with available plates:
-- 45, 35, 25, 10, 5, 2.5, 1.25 lbs
+| Movement | Reps | Guide | Alternatives (Hygiene Friendly) |
+|----------|------|-------|--------------------------------|
+| **Wall Thoracic Rotation** | 10/side | [Link](https://www.youtube.com/watch?v=example) | Standing Windmill, T-Spine Twist |
+| **Kettlebell Swings** | 20 | [Link](https://www.youtube.com/watch?v=example) | Broad Jumps, BW Good Morning |
+| **Standing KB Halo** | 10/dir | [Link](https://www.youtube.com/watch?v=example) | Plate Around World, Broom Dislocates |
+| **Goblet Squat Prying** | 10 | [Link](https://www.youtube.com/watch?v=example) | Cossack Squat, Deep Squat Hold |
+| **Jump Rope** | 100 | [Link](https://www.youtube.com/watch?v=example) | Jumping Jacks, High Knees |
 
 ---
 
-## Recovery-Based Scaling
+## 4. PHASE 2: THE WORK (47 MIN)
 
-Before each workout, assess your recovery status:
+### Training Parameters
+- **Tempo:** 3 seconds down (eccentric), 1 second up (concentric)
+- **Rest:** 90 seconds between sets
 
-| Status | Criteria | Action |
-|--------|----------|--------|
-| **GREEN** (Full Strength) | 7+ hours sleep, no pain, feeling good | 100% of recommended weight |
-| **YELLOW** (Moderate Recovery) | 5-6 hours sleep, stiffness present | 90% of recommended weight |
-| **RED** (Poor Recovery) | <5 hours sleep, acute pain, illness | **No lifting allowed** - Rest day |
+### 1. HINGE (3 Sets × 8 Reps)
+- **Primary:** Trap Bar Deadlift • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** Barbell RDL • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** DB RDL • [Watch Form](https://www.youtube.com/watch?v=example)
 
-### Red Day Recommendation
-Take a 20-30 minute walk instead. Light movement aids recovery without adding stress. Return when recovery improves.
+### 2. KNEE (3 Sets × 10 Reps)
+- **Primary:** Goblet Squat • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** DB Front Squat • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** Bulgarian Split Squat • [Watch Form](https://www.youtube.com/watch?v=example)
 
----
+### 3. HORIZONTAL PUSH (3 Sets × 10 Reps)
+- **Primary:** DB Bench Press • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** Barbell Bench Press • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** Incline Push-up (Bench) • [Watch Form](https://www.youtube.com/watch?v=example)
 
-## Fault Tolerance Rules
+### 4. VERTICAL PUSH (3 Sets × 10 Reps)
+- **Primary:** Standing DB Overhead Press • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** Seated DB Press • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** Barbell Overhead Press • [Watch Form](https://www.youtube.com/watch?v=example)
 
-| Situation | Response |
-|-----------|----------|
-| **Missed 1 workout** | Slide schedule (maintain 48h gap between sessions) |
-| **Missed 2+ workouts** | Reduce weights by 10% |
-| **Sick (Fever)** | FULL REST. Resume 24h after fever breaks. Reduce weights by 20% |
-| **Injury** | Skip aggravating exercise. Continue with others. |
-| **Gym Closed** | Execute Emergency Bodyweight Circuit (see below) |
+### 5. PULL (3 Sets × 12 Reps)
+- **Primary:** Chest-Supported Row (Incline Bench) • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** Single Arm DB Row (Bench Support) • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** Barbell Row • [Watch Form](https://www.youtube.com/watch?v=example)
 
----
+### 6. CARRY (3 Sets × 40 Steps)
+- **Primary:** Farmers Walk • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** Farmer Hold (Stationary, 30-45s) • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** DB Shrugs • [Watch Form](https://www.youtube.com/watch?v=example)
 
-## Emergency Bodyweight Circuit
-
-**When the gym is unavailable.**
-
-**Format:** 4 Rounds, AMRAP (As Many Reps As Possible), 90 seconds rest between rounds
-
-| Movement Pattern | Exercise |
-|------------------|----------|
-| Push | Incline Push-ups (Hands on furniture) |
-| Legs | Bodyweight Squats (Tempo: 3s down) |
-| Pull | Inverted Rows (Table) OR Door Rows |
-| Core | Hardstyle Plank |
-
----
-
-## Exercise Alternatives
-
-Each exercise has approved alternatives for equipment constraints or individual needs. Alternatives track progression independently.
-
-### Hinge
-- Barbell RDL
-- Dumbbell RDL
-
-### Knee
-- DB Front Squat
-- Bulgarian Split Squat
-
-### Horizontal Push (Bench)
-- Barbell Bench Press
-- Incline Push-up on Bench
-
-### Horizontal Push (Incline)
-- Incline Barbell Press
-- Decline Push-up
-
-### Vertical Push
-- Seated DB Press
-- Barbell Overhead Press
-
-### Pull (Horizontal)
-- Single Arm DB Row (Bench)
-- Barbell Row
-
-### Pull (Vertical)
-- Pull Up
-- Band Pulldown
-
-### Carry
-- Farmer Hold (Standing)
-- DB Shrugs
-
-### Calves
-- Seated Calf Raises
-- Jump Rope
+### 7. CALVES (3 Sets × 15 Reps)
+- **Primary:** Standing Calf Raises • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 1:** Seated Calf Raises • [Watch Form](https://www.youtube.com/watch?v=example)
+- **Alt 2:** Jump Rope (Boxing Style) • [Watch Form](https://www.youtube.com/watch?v=example)
 
 ---
 
-## Data Management
+## 5. PHASE 3: FINISHER (10 MIN)
 
-### Session Tracking
-- Automatic session numbering
-- Week calculation (every 3 sessions = 1 week)
-- Total volume calculation (weight x sets x reps)
-- Recovery status logging
-- Timestamp logging
+### Cardio (5 Minutes)
+**Intensity:** Conversational Pace (Zone 2)
 
-### Backup & Recovery
-- **Auto-export:** Every 5 sessions
-- **Manual backup:** JSON export available
-- **Draft auto-save:** Every 30 seconds during active session
-- **Maximum import size:** 10MB
+- **Option A:** Assault Bike • [Technique](https://www.youtube.com/watch?v=example)
+- **Option B:** Rower • [Technique](https://www.youtube.com/watch?v=example)
+- **Option C:** Treadmill Incline Walk • [Technique](https://www.youtube.com/watch?v=example)
 
-### Session Validation
-- 24-hour minimum rest period enforced
-- Warning after 7+ days without training
-- Corruption detection with graceful recovery
+### Decompression (5 Minutes)
+**Goal:** Spinal traction and CNS reset
+
+1. **Dead Hang:** Max hold time • [Link](https://www.youtube.com/watch?v=example)
+2. **Box Breathing:** 10 cycles (Seated) • [Link](https://www.youtube.com/watch?v=example)
+   - **Cadence:** Inhale 4s → Hold 4s → Exhale 4s → Hold 4s
 
 ---
 
-## Constants Reference
+## 6. EMERGENCY PROTOCOLS
 
-| Parameter | Value |
-|-----------|-------|
-| Minimum rest between workouts | 24 hours |
-| Sessions per week | 3 |
-| Default rest timer | 90 seconds |
-| Cardio timer | 5 minutes (300 seconds) |
-| Weight increment (success) | +5 lbs |
-| Stepper increment | 2.5 lbs |
-| Deload interval | Every 6 weeks |
-| Deload percentage | 60% of max |
-| Stall detection threshold | 3 failed sessions |
-| Stall deload percentage | 90% |
-| Yellow recovery multiplier | 90% |
-| Olympic bar weight | 45 lbs |
-| Auto-export interval | Every 5 sessions |
+### "Gym Closed" Bodyweight Circuit
 
----
+Execute 4 rounds. AMRAP (As Many Reps As Possible) with perfect form. No rest between exercises, 90s rest between rounds.
 
-## Version History
+1. **Push:** Incline Push-ups (Hands on furniture) • [Link](https://www.youtube.com/watch?v=example)
+2. **Legs:** Bodyweight Squats (Tempo: 3s down) • [Link](https://www.youtube.com/watch?v=example)
+3. **Pull:** Inverted Rows (Under table) OR Door Rows • [Link](https://www.youtube.com/watch?v=example)
+4. **Core:** Hardstyle Plank • [Link](https://www.youtube.com/watch?v=example)
 
-- **v3.9.26** - Touch targets & sync tool enhancements
-- **v3.9.24** - Service Worker fallback scoping
-- **v3.9.23** - Magic numbers refactoring to constants
-- **v3.9.22** - Performance optimizations
+### Plate Loading Cheat Sheet
+
+Standard 45lb Bar. Loading per side.
+
+- **95 lbs:** [ 25 ]
+- **115 lbs:** [ 35 ]
+- **135 lbs:** [ 45 ]
+- **155 lbs:** [ 45, 10 ]
+- **185 lbs:** [ 45, 25 ]
+- **225 lbs:** [ 45, 45 ]
+- **315 lbs:** [ 45, 45, 45 ]
 
 ---
 
-*This protocol is enforced by the Flexx Files application, providing automated tracking, progression, and recovery management for optimal strength gains.*
+## 7. MANUAL LOG
+
+Copy to notes app.
+
+```
+Date: ________ | Recovery: ⚫
+
+Exercise    | Weight | Set 1 | Set 2 | Set 3 | +/- Next
+------------|--------|-------|-------|-------|----------
+Hinge       |        | [ ]   | [ ]   | [ ]   |
+Knee        |        | [ ]   | [ ]   | [ ]   |
+H-Push      |        | [ ]   | [ ]   | [ ]   |
+V-Push      |        | [ ]   | [ ]   | [ ]   |
+Pull        |        | [ ]   | [ ]   | [ ]   |
+Carry       |        | [ ]   | [ ]   | [ ]   |
+Calves      |        | [ ]   | [ ]   | [ ]   |
+
+Cardio: [ ] Done | Decompress: [ ] Done
+```
+
+---
+
+**Protocol Version:** 2.0  
+**Last Updated:** 2025
