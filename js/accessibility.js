@@ -155,7 +155,7 @@ export const AriaLabels = {
         // Add ARIA labels to interactive elements missing them
         this.enhanceButtons();
         this.enhanceInputs();
-        this.enhanceNavigiation();
+        this.enhanceNavigation();
         this.enhanceModals();
 
         Logger.info('ARIA labels enhanced');
@@ -196,7 +196,7 @@ export const AriaLabels = {
         });
     },
 
-    enhanceNavigiation() {
+    enhanceNavigation() {
         const nav = document.querySelector('.bottom-nav');
         if (nav) {
             nav.setAttribute('role', 'navigation');
