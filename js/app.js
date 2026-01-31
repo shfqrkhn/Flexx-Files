@@ -187,7 +187,7 @@ function renderRecovery(c) {
                     ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">Next available: ${nextDate}</p>` : ''}
                     <p class="text-xs" style="margin-top:1rem; opacity:0.7">Rest is when your muscles grow stronger. Come back when you're fully recovered.</p>
                 </div>
-                <button class="btn btn-secondary" onclick="window.skipRest()" aria-label="Skip rest requirement">Skip Rest (Debug)</button>
+                <button class="btn btn-secondary" onclick="window.skipRest()" aria-label="Override rest requirement and train anyway">Train Anyway</button>
             </div>`;
         return;
     }
@@ -600,14 +600,21 @@ window.setRec = async (r) => {
     Metrics.mark('recovery-select-start');
 
     if (r === 'red') {
-        Logger.info('Red recovery selected - workout skipped', { recovery: r });
-        Analytics.track('recovery_selected', { status: 'red', action: 'skipped' });
+        Logger.info('Red recovery selected - confirming override', { recovery: r });
         ScreenReader.announce('Red recovery status selected. Rest day recommended.');
-        return Modal.show({
-            title: 'Take a Rest Day',
-            text: 'Your body needs recovery. Strength training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead. Light movement aids recovery without adding stress. Come back when you feel better.',
-            danger: true
+        const proceed = await Modal.show({
+            type: 'confirm',
+            title: 'Rest Day Recommended',
+            text: 'Your body needs recovery. Training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead.\n\nAre you sure you want to train anyway?',
+            danger: true,
+            okText: 'Train Anyway'
         });
+        if (!proceed) {
+            Analytics.track('recovery_selected', { status: 'red', action: 'skipped' });
+            return;
+        }
+        Analytics.track('recovery_selected', { status: 'red', action: 'override' });
+        Logger.warn('Red recovery override - user chose to train anyway', { recovery: r });
     }
 
     State.recovery = r;
