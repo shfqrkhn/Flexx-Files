@@ -28,6 +28,7 @@ const localStorageMock = {
 global.localStorage = localStorageMock;
 
 global.window = global;
+global.window.location = { pathname: '/test', href: 'http://localhost/test' };
 global.document = {
     createElement: () => ({ textContent: '', innerHTML: '' }),
     querySelector: () => null

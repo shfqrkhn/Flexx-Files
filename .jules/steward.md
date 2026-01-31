@@ -1,3 +1,6 @@
+## 2026-01-31 - [Bolt] - [Test Mock Completeness - window.location]
+**Protocol:** Node.js test mocks must include `window.location` with `pathname` and `href` properties when testing modules that use the Logger, as observability.js captures URL context on log events.
+
 ## 2026-01-31 - [Palette] - [Modal Accessibility - aria-hidden Toggle]
 **Protocol:** Modal dialogs must toggle `aria-hidden` attribute and move focus into modal on open. Screen readers should not access hidden modal content.
 
