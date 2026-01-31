@@ -9,6 +9,7 @@ global.localStorage = {
     removeItem(k) { delete this.store[k]; }
 };
 global.window = global;
+global.window.location = { pathname: '/test', href: 'http://localhost/test' };
 global.window.requestIdleCallback = (cb) => setTimeout(cb, 0);
 global.window.cancelIdleCallback = (id) => clearTimeout(id);
 
