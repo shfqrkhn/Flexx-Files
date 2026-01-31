@@ -523,7 +523,7 @@ function renderProtocol(c) {
                 <h3 style="color:var(--accent)">Overview</h3>
                 <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
                     <li><strong>Schedule:</strong> 3 days/week (e.g., Mon/Wed/Fri)</li>
-                    <li><strong>Time:</strong> 65 Minutes hard cap</li>
+                    <li><strong>Time:</strong> 58 Minutes</li>
                     <li><strong>Spacing:</strong> 48–72 hours rest required</li>
                 </ul>
             </div>

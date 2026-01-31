@@ -79,7 +79,7 @@ foreach ($File in $Files) {
 New-Item -Path "$ProjectName\assets\icon-192.png" -ItemType File -Force | Out-Null
 New-Item -Path "$ProjectName\assets\icon-512.png" -ItemType File -Force | Out-Null
 
-Write-Host "✅ Flexx Files v3.9.13 Structure Created." -ForegroundColor Cyan
+Write-Host "✅ Flexx Files v3.9.30 Structure Created." -ForegroundColor Cyan
 ```
 
 ### C. Deployment
@@ -845,7 +845,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.26';
+export const APP_VERSION = '3.9.30';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -2376,7 +2376,7 @@ function renderProtocol(c) {
                 <h3 style="color:var(--accent)">Overview</h3>
                 <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
                     <li><strong>Schedule:</strong> 3 days/week (e.g., Mon/Wed/Fri)</li>
-                    <li><strong>Time:</strong> 65 Minutes hard cap</li>
+                    <li><strong>Time:</strong> 58 Minutes</li>
                     <li><strong>Spacing:</strong> 48–72 hours rest required</li>
                 </ul>
             </div>
@@ -5041,7 +5041,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.26';
+const CACHE_NAME = 'flexx-v3.9.30';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
@@ -5098,8 +5098,8 @@ self.addEventListener('message', e => { if (e.data?.type === 'SKIP_WAITING') sel
 
 ### The 4-Phase System
 1.  **Warmup:** Raise body temp, prime joints (5 mins).
-2.  **Lifting:** Heavy compound movements (25-35 mins).
-3.  **Cardio:** High intensity interval or steady state (5-10 mins).
-4.  **Decompress:** Parasympathetic reset to kickstart recovery (5 mins).
+2.  **Lifting:** Heavy compound movements (45 mins).
+3.  **Cardio:** Zone 2 cardiovascular work (5 mins).
+4.  **Decompress:** Parasympathetic reset to kickstart recovery (3 mins).
 
 --- END OF FILE FLEXX-FILES-COMPLETE.md ---
