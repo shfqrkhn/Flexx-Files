@@ -1,0 +1,20 @@
+# Development artifacts
+*.log
+*.tmp
+*.bak
+*.orig
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Local environment
+.env
+.env.local
