@@ -138,24 +138,26 @@ export const CARDIO_OPTIONS = [
 
 export const DECOMPRESSION = [
     {
-        id: 'hang', name: 'Dead Hang', 
+        id: 'hang', name: 'Dead Hang',
         video: 'https://www.youtube.com/results?search_query=dead+hang+form',
         alternatives: ['Farmers Hold (Static)', 'Plate Pinch Hold'],
         altLinks: {
             'Farmers Hold (Static)': 'https://www.youtube.com/results?search_query=farmers+hold+exercise',
             'Plate Pinch Hold': 'https://www.youtube.com/results?search_query=plate+pinch+grip+hold'
         },
-        inputLabel: 'Seconds'
+        inputLabel: 'Seconds',
+        duration: '30-60 seconds • Relax shoulders, decompress spine'
     },
     {
-        id: 'breath', name: 'Box Breathing (Seated)', 
+        id: 'breath', name: 'Box Breathing (Seated)',
         video: 'https://www.youtube.com/results?search_query=seated+box+breathing+technique',
         alternatives: ['Physiological Sigh', '4-7-8 Breathing'],
         altLinks: {
             'Physiological Sigh': 'https://www.youtube.com/results?search_query=physiological+sigh+breathing',
             '4-7-8 Breathing': 'https://www.youtube.com/results?search_query=4-7-8+breathing+technique'
         },
-        inputLabel: null
+        inputLabel: null,
+        duration: '4 rounds • 4s inhale, 4s hold, 4s exhale, 4s hold'
     }
 ];
 
