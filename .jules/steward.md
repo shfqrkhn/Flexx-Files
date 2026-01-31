@@ -1,3 +1,6 @@
+## 2026-01-31 - [Palette] - [Modal Accessibility - aria-hidden Toggle]
+**Protocol:** Modal dialogs must toggle `aria-hidden` attribute and move focus into modal on open. Screen readers should not access hidden modal content.
+
 ## 2026-01-31 - [Palette] - [Remove All Blocking States - User Override]
 **Protocol:** No app state should block user progression without an override option. Rest period and Red recovery now have "Train Anyway" buttons allowing user autonomy while preserving safety warnings.
 

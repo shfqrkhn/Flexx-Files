@@ -50,6 +50,8 @@ const Modal = {
             ok.onclick = () => this.close(true);
             this.actions.appendChild(ok);
             this.el.classList.add('active');
+            this.el.setAttribute('aria-hidden', 'false');
+            ok.focus(); // Move focus into modal for accessibility
         });
     },
     close(res) {
@@ -59,6 +61,7 @@ const Modal = {
             return;
         }
         this.el.classList.remove('active');
+        this.el.setAttribute('aria-hidden', 'true');
         if (this.resolve) this.resolve(res);
     }
 };
