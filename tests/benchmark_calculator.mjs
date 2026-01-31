@@ -11,7 +11,7 @@ if (typeof global !== 'undefined') {
         length: 0,
         key: () => null
     };
-    global.window = {};
+    global.window = { location: { pathname: '/test', href: 'http://localhost/test' } };
     global.console = {
         ...console,
         // log: () => {}, // Silence logs

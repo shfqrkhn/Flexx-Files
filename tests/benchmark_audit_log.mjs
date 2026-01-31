@@ -34,6 +34,7 @@ global.document = {
     querySelector: () => null
 };
 global.window = global;
+global.window.location = { pathname: '/test', href: 'http://localhost/test' };
 
 // === BENCHMARK ===
 async function runBenchmark() {

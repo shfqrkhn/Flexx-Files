@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.31 (Refactor)
+**Version:** 3.9.32 (Refactor)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -79,7 +79,7 @@ foreach ($File in $Files) {
 New-Item -Path "$ProjectName\assets\icon-192.png" -ItemType File -Force | Out-Null
 New-Item -Path "$ProjectName\assets\icon-512.png" -ItemType File -Force | Out-Null
 
-Write-Host "✅ Flexx Files v3.9.31 Structure Created." -ForegroundColor Cyan
+Write-Host "✅ Flexx Files v3.9.32 Structure Created." -ForegroundColor Cyan
 ```
 
 ### C. Deployment
@@ -845,7 +845,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.31';
+export const APP_VERSION = '3.9.32';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -5041,7 +5041,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.31';
+const CACHE_NAME = 'flexx-v3.9.32';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
