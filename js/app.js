@@ -1308,6 +1308,25 @@ if (mainContent) {
         }
     });
 
+    // 12. Save draft when user switches tabs or minimizes browser
+    // visibilitychange fires when tab becomes hidden (more reliable than beforeunload for tab switches)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden' && State.activeSession) {
+            Storage.saveDraft(State.activeSession);
+            Storage.flushPersistence();
+            Logger.debug('Draft saved on visibility change', { id: State.activeSession.id });
+        }
+    });
+
+    // 13. Save draft on pagehide (more reliable than beforeunload on mobile/Safari)
+    window.addEventListener('pagehide', () => {
+        if (State.activeSession) {
+            Storage.saveDraft(State.activeSession);
+            Storage.flushPersistence();
+            Logger.debug('Draft saved on pagehide', { id: State.activeSession.id });
+        }
+    });
+
 })().catch(error => {
     console.error('Fatal initialization error:', error);
     ScreenReader.announce('Failed to initialize app. Please refresh the page.', 'assertive');
