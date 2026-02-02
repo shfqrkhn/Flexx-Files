@@ -518,6 +518,7 @@ export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
     _plateCache: new Map(),
+    _loadBuffer: [],
     // Optimization: Pre-calculate plate strings to avoid repeated conversion
     _plateStrings: CONST.AVAILABLE_PLATES.map(String),
     _lastSessions: null,
@@ -923,7 +924,7 @@ export const Calculator = {
             if (target <= 0) {
                 result = 'Empty Bar';
             } else {
-                let loadStr = '';
+                this._loadBuffer.length = 0;
                 let rem = target;
                 const plates = CONST.AVAILABLE_PLATES;
                 const plateStrs = this._plateStrings;
@@ -934,17 +935,20 @@ export const Calculator = {
                     const p = plates[i];
                     const pStr = plateStrs[i];
                     while (rem >= p) {
-                        loadStr += (loadStr ? ', ' : '') + pStr;
+                        this._loadBuffer.push(pStr);
                         rem -= p;
                     }
                 }
-                result = loadStr ? `+ [ ${loadStr} ]` : 'Empty Bar';
+                result = this._loadBuffer.length ? `+ [ ${this._loadBuffer.join(', ')} ]` : 'Empty Bar';
             }
         }
 
         // Optimization: Memoize result
-        // Limit cache size to prevent memory leaks (e.g. 100 entries)
-        if (this._plateCache.size > 100) this._plateCache.clear();
+        // Limit cache size to prevent memory leaks (e.g. 300 entries)
+        if (this._plateCache.size > 300) {
+            const firstKey = this._plateCache.keys().next().value;
+            this._plateCache.delete(firstKey);
+        }
         this._plateCache.set(weight, result);
 
         return result;
