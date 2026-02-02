@@ -90,6 +90,7 @@ function preSanitizeConfig() {
 
 // === STATE & TOOLS ===
 const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
+let _navCache = null;
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -148,7 +149,10 @@ function render() {
         }
 
         // Update active tab state
-        document.querySelectorAll('.nav-item').forEach(el => {
+        if (!_navCache) {
+            _navCache = document.querySelectorAll('.nav-item');
+        }
+        _navCache.forEach(el => {
             const isActive = el.dataset.view === State.view;
             el.classList.toggle('active', isActive);
             if (isActive) el.setAttribute('aria-current', 'page');
