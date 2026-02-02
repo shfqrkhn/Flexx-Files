@@ -208,7 +208,7 @@ export const Storage = {
             Logger.info(`Successfully migrated to ${CONST.STORAGE_VERSION}`);
         } catch (e) {
             Logger.error('Migration failed:', { error: e.message });
-            alert('Data migration failed. Your data is safe but may need manual export/import.');
+            throw new Error('Data migration failed. Your data is safe but may need manual export/import.');
         }
     },
 
@@ -262,7 +262,6 @@ export const Storage = {
         if (this._isCorrupted) {
             const msg = 'Storage is corrupted. Cannot save to prevent data loss. Please export data immediately.';
             Logger.critical(msg);
-            alert(msg);
             throw new Error(msg);
         }
 

@@ -852,7 +852,7 @@ window.swapCardioLink = () => {
     }
 };
 
-window.nextPhase = (p) => {
+window.nextPhase = async (p) => {
     try {
         if(p === 'lifting') {
             State.activeSession.warmup = WARMUP.map(w => {
@@ -932,7 +932,7 @@ window.nextPhase = (p) => {
         Logger.error('Error transitioning phase', { phase: p, error: e.message });
         console.error('Error transitioning phase:', e);
         ScreenReader.announce('Error saving progress. Please try again.', 'assertive');
-        alert('Error saving progress. Please try again.');
+        await Modal.show({ title: 'Error', text: 'Error saving progress. Please try again.' });
     }
 };
 window.finish = async () => {
@@ -990,7 +990,7 @@ window.finish = async () => {
         });
         console.error('Error finishing session:', e);
         ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
-        alert('Failed to save session. Your data may not be saved. Please try exporting as backup.');
+        await Modal.show({ title: 'Error', text: 'Failed to save session. Your data may not be saved. Please try exporting as backup.' });
     }
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
@@ -1423,5 +1423,5 @@ if (mainContent) {
 })().catch(error => {
     console.error('Fatal initialization error:', error);
     ScreenReader.announce('Failed to initialize app. Please refresh the page.', 'assertive');
-    alert('Failed to initialize app. Please refresh the page.');
+    Modal.show({ title: 'Fatal Error', text: 'Failed to initialize app. Please refresh the page.' });
 });

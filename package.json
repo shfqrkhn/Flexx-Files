@@ -1,6 +1,6 @@
 {
   "name": "flexx-files",
-  "version": "3.9.37",
+  "version": "3.9.38",
   "type": "module",
   "scripts": {
     "test:correctness": "node tests/verify_correctness.mjs",
