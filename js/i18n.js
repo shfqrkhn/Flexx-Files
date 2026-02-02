@@ -85,6 +85,7 @@ const translations = {
         // Settings
         settings: {
             title: 'Settings',
+            protocolGuide: '📖 Protocol Guide',
             backupData: 'Backup Data',
             restoreData: 'Restore Data',
             factoryReset: 'Factory Reset',

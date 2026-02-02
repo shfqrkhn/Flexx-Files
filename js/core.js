@@ -961,7 +961,7 @@ export const Validator = {
 
         const lastSession = sessions[sessions.length - 1];
         if (!lastSession || !lastSession.date) {
-            console.warn('Last session missing date');
+            Logger.warn('Last session missing date');
             return { valid: true, warning: true };
         }
 
