@@ -517,6 +517,8 @@ export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
     _plateCache: new Map(),
+    // Optimization: Pre-calculate plate strings to avoid repeated conversion
+    _plateStrings: CONST.AVAILABLE_PLATES.map(String),
     _lastSessions: null,
     _lastLookup: null,
 
@@ -922,12 +924,16 @@ export const Calculator = {
             } else {
                 let loadStr = '';
                 let rem = target;
+                const plates = CONST.AVAILABLE_PLATES;
+                const plateStrs = this._plateStrings;
+                const len = plates.length;
 
                 // Greedy algorithm: use largest plates first
-                for (let p of CONST.AVAILABLE_PLATES) {
+                for (let i = 0; i < len; i++) {
+                    const p = plates[i];
+                    const pStr = plateStrs[i];
                     while (rem >= p) {
-                        if (loadStr) loadStr += ', ';
-                        loadStr += p;
+                        loadStr += (loadStr ? ', ' : '') + pStr;
                         rem -= p;
                     }
                 }
