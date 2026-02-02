@@ -551,7 +551,13 @@ function renderSettings(c) {
 
     const backupBtn = c.querySelector('#backup-btn');
     if (backupBtn) {
-        backupBtn.addEventListener('click', () => Storage.exportData());
+        backupBtn.addEventListener('click', () => {
+            try {
+                Storage.exportData();
+            } catch(e) {
+                Modal.show({ title: 'Export Failed', text: e.message });
+            }
+        });
     }
 }
 
@@ -1006,7 +1012,16 @@ window.closeProtocol = () => {
     State.view = 'settings';
     render();
 };
-window.del = async (id) => { if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) { Storage.deleteSession(id); render(); }};
+window.del = async (id) => {
+    if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) {
+        try {
+            Storage.deleteSession(id);
+            render();
+        } catch(e) {
+            Modal.show({ title: 'Error', text: e.message });
+        }
+    }
+};
 window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
 window.imp = (el) => {
     const file = el.files[0];
@@ -1025,7 +1040,22 @@ window.imp = (el) => {
     }
 
     const r = new FileReader();
-    r.onload = e => Storage.importData(e.target.result);
+    r.onload = async e => {
+        const result = Storage.validateImport(e.target.result);
+        if (!result.valid) {
+            Modal.show({ title: 'Import Failed', text: result.error || 'Invalid file format.' });
+            return;
+        }
+
+        if (await Modal.show({
+            type: 'confirm',
+            title: 'Import Data?',
+            text: `Import ${result.sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`
+        })) {
+            Storage.applyImport(result.sessions);
+        }
+        el.value = ''; // Reset input
+    };
     r.readAsText(file);
 };
 

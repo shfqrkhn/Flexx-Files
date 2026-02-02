@@ -339,7 +339,6 @@ export const Storage = {
             Logger.error('Failed to save session:', { error: e.message });
             // Rollback transaction on error
             this.Transaction.rollback();
-            alert('Failed to save workout. Please try exporting your data.');
             throw e; // Re-throw so caller knows it failed
         }
     },
@@ -365,8 +364,7 @@ export const Storage = {
             return true;
         } catch (e) {
             Logger.error('Failed to delete session:', { error: e.message });
-            alert('Failed to delete session. Please try again.');
-            return false;
+            throw new Error('Failed to delete session. Please try again.');
         }
     },
 
@@ -388,7 +386,7 @@ export const Storage = {
             URL.revokeObjectURL(a.href);
         } catch (e) {
             Logger.error('Export error:', { error: e.message });
-            alert(CONST.ERROR_MESSAGES.EXPORT_FAILED);
+            throw new Error(CONST.ERROR_MESSAGES.EXPORT_FAILED);
         }
     },
 
@@ -411,7 +409,7 @@ export const Storage = {
         }
     },
 
-    importData(jsonString) {
+    validateImport(jsonString) {
         try {
             const data = JSON.parse(jsonString);
 
@@ -420,8 +418,7 @@ export const Storage = {
             if (!validation.valid) {
                 // SECURITY: Never expose validation details to user
                 Logger.error('Import validation failed', { errors: validation.errors });
-                alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
-                return;
+                return { valid: false, error: CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR };
             }
 
             const sessions = Array.isArray(data) ? data : data.sessions;
@@ -429,14 +426,21 @@ export const Storage = {
             // Sentinel: Scrub sessions to prevent schema pollution
             const cleanSessions = sessions.map(s => Sanitizer.scrubSession(s)).filter(s => s !== null);
 
-            if (confirm(`Import ${cleanSessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`)) {
-                localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(cleanSessions));
-                this._sessionCache = null;
-                window.location.reload();
-            }
+            return { valid: true, sessions: cleanSessions };
         } catch (e) {
             Logger.error('Import error:', { error: e.message });
-            alert(CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR);
+            return { valid: false, error: CONST.ERROR_MESSAGES.IMPORT_PARSE_ERROR };
+        }
+    },
+
+    applyImport(sessions) {
+        try {
+            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(sessions));
+            this._sessionCache = null;
+            window.location.reload();
+        } catch (e) {
+            Logger.error('Apply import error:', { error: e.message });
+            throw new Error('Failed to apply import data');
         }
     },
 

@@ -154,7 +154,8 @@ export const Sanitizer = {
                         id: d.id,
                         completed: d.completed
                     };
-                    // Legacy support or if structure varies, align with Validator
+                    if (d.val !== undefined) cleanD.val = d.val;
+                    if (d.altUsed !== undefined) cleanD.altUsed = d.altUsed;
                     return cleanD;
                 });
             } else if (typeof session.decompress === 'object') {
