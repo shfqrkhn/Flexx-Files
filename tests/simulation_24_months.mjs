@@ -13,11 +13,14 @@ global.localStorage = {
     key: (i) => Object.keys(store)[i]
 };
 
+global.setTimeout = (cb) => { cb(); return 1; };
+global.clearTimeout = () => {};
+
 global.window = {
     requestIdleCallback: (cb) => cb(),
     cancelIdleCallback: () => {},
-    setTimeout: (cb) => cb(),
-    clearTimeout: () => {},
+    setTimeout: global.setTimeout,
+    clearTimeout: global.clearTimeout,
     location: { reload: () => {}, pathname: '/test', href: 'http://localhost/test' }
 };
 
