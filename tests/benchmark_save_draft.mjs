@@ -1,6 +1,7 @@
 
 import { Storage } from '../js/core.js';
 import * as CONST from '../js/constants.js';
+import { Logger } from '../js/observability.js';
 
 // Setup Mock Environment
 const localStorageMock = {
@@ -8,17 +9,17 @@ const localStorageMock = {
     setItemCalls: [],
     getItemCalls: [],
     getItem(key) {
-        // this.getItemCalls.push({ time: performance.now(), key });
+        this.getItemCalls.push({ time: performance.now(), key });
         return this.store[key] || null;
     },
     setItem(key, value) {
         // Simulate cost: 0.5ms per 1KB
-        const strVal = String(value);
-        const blockingTime = (strVal.length / 1024) * 0.5;
-        const end = performance.now() + blockingTime;
-        while (performance.now() < end) {} // Busy wait to simulate blocking I/O
+        const json = value.toString();
+        const blockingTime = json.length / 2000;
+        const end = performance.now();
+        while(performance.now() - end < blockingTime) {}
 
-        this.store[key] = strVal;
+        this.store[key] = value;
         this.setItemCalls.push({ time: performance.now(), key, duration: blockingTime });
     },
     removeItem(key) { delete this.store[key]; },
@@ -27,73 +28,71 @@ const localStorageMock = {
 };
 global.localStorage = localStorageMock;
 
+// Mock dependencies
 global.window = global;
 global.window.location = { pathname: '/test', href: 'http://localhost/test' };
-global.document = {
-    createElement: () => ({ textContent: '', innerHTML: '' }),
-    querySelector: () => null
+global.console = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+    info: console.info
 };
-Object.defineProperty(global, 'navigator', {
-    value: { userAgent: 'Node' },
-    writable: true,
-    configurable: true
-});
-global.alert = (msg) => console.log('ALERT:', msg);
-global.confirm = () => true;
-
-// Mock requestIdleCallback
-global.requestIdleCallbackCalls = 0;
-global.window.requestIdleCallback = (cb) => {
-    global.requestIdleCallbackCalls++;
-    return setTimeout(cb, 0);
-};
-global.window.cancelIdleCallback = (id) => clearTimeout(id);
+// Prevent Logger from crashing or spamming
+Logger.level = 4; // CRITICAL only
 
 async function run() {
     console.log("=== SaveDraft Benchmark ===");
+    console.log(`DRAFT KEY: ${Storage.KEYS.DRAFT}`);
 
-    const draftSession = {
-        id: 'draft-uuid',
+    const session = {
+        id: 'draft-session-uuid',
         date: new Date().toISOString(),
         recoveryStatus: 'green',
-        exercises: [
-            { id: 'squat', name: 'Squat', weight: 100, setsCompleted: 3, completed: true },
-            { id: 'bench', name: 'Bench Press', weight: 80, setsCompleted: 3, completed: true },
-            { id: 'dl', name: 'Deadlift', weight: 120, setsCompleted: 3, completed: true }
-        ]
+        exercises: Array(10).fill().map((_, i) => ({
+            id: `ex-${i}`,
+            name: `Exercise ${i}`,
+            weight: 100 + i * 5,
+            setsCompleted: 2,
+            completed: false
+        }))
     };
 
-    // Make it a bit larger to simulate real world draft
-    for(let i=0; i<50; i++) {
-        draftSession.exercises.push({ id: `ex-${i}`, weight: 100 });
-    }
+    // --- TEST: Rapid Interaction Loop ---
+    console.log('\n--- Simulating 20 rapid updates (e.g., fast clicking + button) ---');
 
-    console.log(`Draft size: ${JSON.stringify(draftSession).length} chars`);
-
-    // --- TEST: Rapid Updates ---
-    console.log('\n--- Testing Rapid Updates (100 calls) ---');
-
+    // Reset metrics
     localStorageMock.setItemCalls = [];
-    const start = performance.now();
 
-    for(let i=0; i<100; i++) {
-        draftSession.exercises[0].weight = 100 + i;
-        Storage.saveDraft(draftSession);
+    let start = performance.now();
+
+    for (let i = 0; i < 20; i++) {
+        // Modify session slightly to force new JSON
+        session.exercises[0].weight += 2.5;
+        Storage.saveDraft(session);
     }
 
-    const end = performance.now();
-    const duration = end - start;
+    let end = performance.now();
+    let duration = end - start;
 
-    console.log(`100 saveDraft calls took ${duration.toFixed(2)}ms`);
-    console.log(`Average time per call: ${(duration/100).toFixed(2)}ms`);
-    console.log(`Total synchronous setItem calls: ${localStorageMock.setItemCalls.length}`);
+    console.log(`20 saveDraft calls took: ${duration.toFixed(2)}ms`);
 
-    if (localStorageMock.setItemCalls.length === 100) {
-        console.log('BASELINE: Synchronous behavior confirmed (100 writes).');
+    console.log("Calls:", localStorageMock.setItemCalls.map(c => c.key));
+    const writeCount = localStorageMock.setItemCalls.filter(c => c.key === Storage.KEYS.DRAFT).length;
+    console.log(`Actual localStorage writes: ${writeCount}`);
+
+    if (writeCount === 20) {
+        console.log('FAIL: Every call triggered a synchronous write (Blocking I/O).');
+    } else if (writeCount < 5) {
+        console.log('PASS: Writes were debounced.');
     } else {
-        console.log(`OPTIMIZED: Only ${localStorageMock.setItemCalls.length} writes occurred.`);
+        console.log(`WARN: Partial debouncing? (${writeCount} writes)`);
     }
 
+    // Wait for any pending debounce
+    await new Promise(r => setTimeout(r, 600));
+
+    const finalWriteCount = localStorageMock.setItemCalls.filter(c => c.key === Storage.KEYS.DRAFT).length;
+    console.log(`Total writes after wait: ${finalWriteCount}`);
 }
 
 run();
