@@ -810,6 +810,10 @@ export const RECOVERY_CONFIG = {
     yellow: { label: 'Yellow', factor: 0.9 },
     red: { label: 'Red', factor: 0 }
 };
+// Optimization: Pre-calculated Maps for O(1) lookups
+export const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
+export const WARMUP_MAP = new Map(WARMUP.map(e => [e.id, e]));
+export const DECOMPRESSION_MAP = new Map(DECOMPRESSION.map(e => [e.id, e]));
 ```
 
 ## js/constants.js
@@ -1177,7 +1181,7 @@ export const Storage = {
             session.totalVolume = session.exercises.reduce((sum, ex) => {
                 if (ex.skipped || ex.usingAlternative) return sum;
                 // Look up the exercise config to get the prescribed reps
-                const cfg = EXERCISES.find(e => e.id === ex.id);
+                const cfg = EXERCISE_MAP.get(ex.id);
                 const reps = cfg ? cfg.reps : 0;
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
@@ -2557,7 +2561,7 @@ window.swapAlt = (id) => {
             return;
         }
         const sel = selElement.value;
-        const cfg = EXERCISES.find(e => e.id === id) || WARMUP.find(w => w.id === id) || DECOMPRESSION.find(d => d.id === id);
+        const cfg = EXERCISE_MAP.get(id) || WARMUP_MAP.get(id) || DECOMPRESSION_MAP.get(id);
         if (!cfg) {
             console.error(`Exercise config not found: ${id}`);
             return;
