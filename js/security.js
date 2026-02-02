@@ -169,17 +169,6 @@ export const Sanitizer = {
     },
 
     /**
-     * Sanitize HTML to prevent XSS attacks
-     * Allows only safe tags and attributes
-     */
-    sanitizeHTML(html) {
-        // Create a temporary element
-        const temp = document.createElement('div');
-        temp.textContent = html; // This automatically escapes HTML
-        return temp.innerHTML;
-    },
-
-    /**
      * Sanitize string input - remove dangerous characters
      */
     sanitizeString(str) {
