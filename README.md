@@ -1,6 +1,6 @@
 # FLEXX FILES - THE COMPLETE BUILD
 
-**Version:** 3.9.35 (Refactor)
+**Version:** 3.9.36 (Refactor)
 **Codename:** Zenith    
 **Architecture:** Offline-First PWA (Vanilla JS)   
 **Protocol:** Complete Strength (Hygiene Enforced)    
@@ -849,7 +849,7 @@ export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available pla
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.32';
+export const APP_VERSION = '3.9.36';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
@@ -1396,6 +1396,10 @@ export const Storage = {
 export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
+    _plateCache: new Map(),
+    _loadBuffer: [],
+    // Optimization: Pre-calculate plate strings to avoid repeated conversion
+    _plateStrings: CONST.AVAILABLE_PLATES.map(String),
     _lastSessions: null,
     _lastLookup: null,
 
@@ -1787,6 +1791,8 @@ export const Calculator = {
     },
 
     getPlateLoad(weight) {
+        if (this._plateCache.has(weight)) return this._plateCache.get(weight);
+
         // Calculate plates needed for each side of barbell
         if (weight < CONST.OLYMPIC_BAR_WEIGHT_LBS) return 'Use DBs / Fixed Bar';
         const target = (weight - CONST.OLYMPIC_BAR_WEIGHT_LBS) / 2; // Each side gets half
@@ -1802,7 +1808,15 @@ export const Calculator = {
                 rem -= p;
             }
         }
-        return load.length > 0 ? `+ [ ${load.join(', ')} ]` : 'Empty Bar';
+        const result = load.length > 0 ? `+ [ ${load.join(', ')} ]` : 'Empty Bar';
+
+        // Cache result (LRU-ish: delete oldest if full)
+        if (this._plateCache.size > 300) {
+            const first = this._plateCache.keys().next().value;
+            this._plateCache.delete(first);
+        }
+        this._plateCache.set(weight, result);
+        return result;
     },
 };
 
@@ -2085,9 +2099,17 @@ function renderRecovery(c) {
 
 function renderWarmup(c) {
     let warmupHtml = '';
+    // Optimization: Create Map for O(1) lookup
+    const activeMap = new Map();
+    if (State.activeSession?.warmup) {
+        for (const w of State.activeSession.warmup) {
+            activeMap.set(w.id, w);
+        }
+    }
+
     for (let i = 0; i < WARMUP.length; i++) {
         const w = WARMUP[i];
-        const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+        const activeW = activeMap.get(w.id);
         const isChecked = activeW ? activeW.completed : false;
         const altUsed = activeW ? activeW.altUsed : '';
         const displayName = Sanitizer.sanitizeString(altUsed || w.name);
@@ -2106,7 +2128,7 @@ function renderWarmup(c) {
                         <input type="checkbox" class="big-check" id="w-${w.id}" ${isChecked ? 'checked' : ''} onchange="window.updateWarmup('${w.id}')">
                         <div><div id="name-${w.id}">${displayName}</div><div class="text-xs">${w.reps}</div></div>
                     </label>
-                    <a id="vid-${w.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${displayName}">🎥</a>
+                    <a id="vid-${w.id}" href="${vidUrl}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
@@ -2145,10 +2167,18 @@ function renderLifting(c) {
             <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
             ${(() => {
                 let exercisesHtml = '';
+                // Optimization: Create Map for O(1) lookup
+                const activeMap = new Map();
+                if (State.activeSession?.exercises) {
+                    for (const e of State.activeSession.exercises) {
+                        activeMap.set(e.id, e);
+                    }
+                }
+
                 for (let j = 0; j < EXERCISES.length; j++) {
                     const ex = EXERCISES[j];
                     // Check state first for persistence
-                    const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                    const activeEx = activeMap.get(ex.id);
                     const hasAlt = activeEx?.usingAlternative;
                     const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
                     const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
@@ -2174,9 +2204,10 @@ function renderLifting(c) {
                         <div>
                             <div class="text-xs" style="color:var(--accent)">${ex.category}</div>
                             <h2 id="name-${ex.id}" style="margin-bottom:0">${name}</h2>
+                            <div class="text-xs" style="opacity:0.8; margin-bottom:0.25rem">${ex.sets} sets × ${ex.reps} reps</div>
                             <div id="last-${ex.id}" class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
+                        <a id="vid-${ex.id}" href="${vid}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
                     <div class="stepper-control">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
@@ -2219,9 +2250,17 @@ function renderCardio(c) {
 
 function renderDecompress(c) {
     let decompressHtml = '';
+    // Optimization: Create Map for O(1) lookup
+    const activeMap = new Map();
+    if (State.activeSession?.decompress) {
+        for (const d of State.activeSession.decompress) {
+            activeMap.set(d.id, d);
+        }
+    }
+
     for (let i = 0; i < DECOMPRESSION.length; i++) {
         const d = DECOMPRESSION[i];
-        const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+        const activeD = activeMap.get(d.id);
         const isChecked = activeD ? activeD.completed : false;
         const val = activeD ? activeD.val : '';
         const altUsed = activeD ? activeD.altUsed : '';
@@ -2238,9 +2277,10 @@ function renderDecompress(c) {
             <div class="card">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
                     <h3 id="name-${d.id}">${displayName}</h3>
-                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
+                    <a id="vid-${d.id}" href="${vidUrl}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : `<p class="text-xs" style="margin-bottom:0.5rem">Sit on bench. Reset CNS.</p>`}
+                <div class="text-xs" style="opacity:0.8; margin-bottom:0.75rem">${d.duration}</div>
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : ''}
                 <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
                 <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                     <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
@@ -5045,7 +5085,7 @@ export default {
 *Service Worker for Offline Caching.*
 
 ```javascript
-const CACHE_NAME = 'flexx-v3.9.32';
+const CACHE_NAME = 'flexx-v3.9.36';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
