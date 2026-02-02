@@ -18,6 +18,10 @@ export const Storage = {
     _pendingWriteType: null, // 'timeout' or 'idle'
     _isCorrupted: false,
 
+    // Draft Optimization: Debounce draft writes
+    _draftCache: null,
+    _pendingDraftWrite: null,
+
     /**
      * ATOMIC TRANSACTION SYSTEM
      * Provides rollback capability for safe data operations
@@ -92,14 +96,42 @@ export const Storage = {
      * Save draft session for recovery
      */
     saveDraft(session) {
-        try {
-            localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(session));
-            Logger.debug('Draft saved', { sessionId: session.id });
-            return true;
-        } catch (e) {
-            Logger.error('Failed to save draft:', { error: e.message });
-            return false;
+        // Update cache immediately
+        this._draftCache = session;
+
+        // Debounce: Clear previous timer
+        if (this._pendingDraftWrite) {
+            clearTimeout(this._pendingDraftWrite);
         }
+
+        // Schedule write
+        this._pendingDraftWrite = setTimeout(() => {
+            this.flushDraft();
+        }, 500); // 500ms debounce
+
+        return true;
+    },
+
+    /**
+     * Flush pending draft write immediately
+     */
+    flushDraft() {
+        if (this._pendingDraftWrite) {
+            clearTimeout(this._pendingDraftWrite);
+            this._pendingDraftWrite = null;
+        }
+
+        if (this._draftCache) {
+            try {
+                localStorage.setItem(this.KEYS.DRAFT, JSON.stringify(this._draftCache));
+                Logger.debug('Draft saved (flushed)', { sessionId: this._draftCache.id });
+                return true;
+            } catch (e) {
+                Logger.error('Failed to flush draft:', { error: e.message });
+                return false;
+            }
+        }
+        return true;
     },
 
     /**
@@ -108,7 +140,9 @@ export const Storage = {
     loadDraft() {
         try {
             const draft = localStorage.getItem(this.KEYS.DRAFT);
-            return draft ? JSON.parse(draft) : null;
+            const parsed = draft ? JSON.parse(draft) : null;
+            this._draftCache = parsed; // Populate cache
+            return parsed;
         } catch (e) {
             Logger.error('Failed to load draft:', { error: e.message });
             return null;
@@ -120,6 +154,12 @@ export const Storage = {
      */
     clearDraft() {
         try {
+            if (this._pendingDraftWrite) {
+                clearTimeout(this._pendingDraftWrite);
+                this._pendingDraftWrite = null;
+            }
+            this._draftCache = null;
+
             localStorage.removeItem(this.KEYS.DRAFT);
             Logger.debug('Draft cleared');
             return true;
