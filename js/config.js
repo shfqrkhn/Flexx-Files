@@ -166,3 +166,7 @@ export const RECOVERY_CONFIG = {
     yellow: { label: 'Yellow', factor: 0.9 },
     red: { label: 'Red', factor: 0 }
 };
+// Optimization: Pre-calculated Maps for O(1) lookups
+export const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
+export const WARMUP_MAP = new Map(WARMUP.map(e => [e.id, e]));
+export const DECOMPRESSION_MAP = new Map(DECOMPRESSION.map(e => [e.id, e]));

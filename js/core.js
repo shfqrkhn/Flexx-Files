@@ -1,11 +1,10 @@
-import { EXERCISES } from './config.js';
+import { EXERCISES, EXERCISE_MAP } from './config.js';
 import * as CONST from './constants.js';
 import { Validator as SecurityValidator, Sanitizer } from './security.js';
 import { Logger } from './observability.js';
 
 // Optimization: Create O(1) lookup map and Set for exercises
-const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
-const EXERCISE_IDS = new Set(EXERCISES.map(e => e.id));
+const EXERCISE_IDS = new Set(EXERCISE_MAP.keys());
 
 export const Storage = {
     KEYS: {
