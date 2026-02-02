@@ -513,6 +513,7 @@ export const Storage = {
 export const Calculator = {
     // Optimization: Cache expensive lookups keyed by sessions array instance
     _cache: new WeakMap(),
+    _plateCache: new Map(),
     _lastSessions: null,
     _lastLookup: null,
 
@@ -905,23 +906,38 @@ export const Calculator = {
     },
 
     getPlateLoad(weight) {
+        if (this._plateCache.has(weight)) return this._plateCache.get(weight);
+
         // Calculate plates needed for each side of barbell
-        if (weight < CONST.OLYMPIC_BAR_WEIGHT_LBS) return 'Use DBs / Fixed Bar';
-        const target = (weight - CONST.OLYMPIC_BAR_WEIGHT_LBS) / 2; // Each side gets half
-        if (target <= 0) return 'Empty Bar';
+        let result;
+        if (weight < CONST.OLYMPIC_BAR_WEIGHT_LBS) {
+            result = 'Use DBs / Fixed Bar';
+        } else {
+            const target = (weight - CONST.OLYMPIC_BAR_WEIGHT_LBS) / 2; // Each side gets half
+            if (target <= 0) {
+                result = 'Empty Bar';
+            } else {
+                let loadStr = '';
+                let rem = target;
 
-        let loadStr = '';
-        let rem = target;
-
-        // Greedy algorithm: use largest plates first
-        for (let p of CONST.AVAILABLE_PLATES) {
-            while (rem >= p) {
-                if (loadStr) loadStr += ', ';
-                loadStr += p;
-                rem -= p;
+                // Greedy algorithm: use largest plates first
+                for (let p of CONST.AVAILABLE_PLATES) {
+                    while (rem >= p) {
+                        if (loadStr) loadStr += ', ';
+                        loadStr += p;
+                        rem -= p;
+                    }
+                }
+                result = loadStr ? `+ [ ${loadStr} ]` : 'Empty Bar';
             }
         }
-        return loadStr ? `+ [ ${loadStr} ]` : 'Empty Bar';
+
+        // Optimization: Memoize result
+        // Limit cache size to prevent memory leaks (e.g. 100 entries)
+        if (this._plateCache.size > 100) this._plateCache.clear();
+        this._plateCache.set(weight, result);
+
+        return result;
     },
 };
 
