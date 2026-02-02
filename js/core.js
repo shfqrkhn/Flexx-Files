@@ -3,6 +3,10 @@ import * as CONST from './constants.js';
 import { Validator as SecurityValidator, Sanitizer } from './security.js';
 import { Logger } from './observability.js';
 
+// Optimization: Create O(1) lookup map and Set for exercises
+const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
+const EXERCISE_IDS = new Set(EXERCISES.map(e => e.id));
+
 export const Storage = {
     KEYS: {
         SESSIONS: `${CONST.STORAGE_PREFIX}sessions_v3`,
@@ -297,7 +301,7 @@ export const Storage = {
             session.totalVolume = session.exercises.reduce((sum, ex) => {
                 if (ex.skipped || ex.usingAlternative) return sum;
                 // Look up the exercise config to get the prescribed reps
-                const cfg = EXERCISES.find(e => e.id === ex.id);
+                const cfg = EXERCISE_MAP.get(ex.id);
                 const reps = cfg ? cfg.reps : 0;
                 return sum + (ex.weight * ex.setsCompleted * reps);
             }, 0);
@@ -734,7 +738,8 @@ export const Calculator = {
         // This is acceptable as the app UI is driven by EXERCISES.
         const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise, recent: SessionExercise[] }>
 
-        const requiredIds = new Set(EXERCISES.map(e => e.id));
+        // Optimization: Use pre-calculated Set
+        const requiredIds = EXERCISE_IDS;
         const fullyResolved = new Set();
         let brokeEarly = false;
 
