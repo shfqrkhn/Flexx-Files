@@ -910,17 +910,18 @@ export const Calculator = {
         const target = (weight - CONST.OLYMPIC_BAR_WEIGHT_LBS) / 2; // Each side gets half
         if (target <= 0) return 'Empty Bar';
 
-        const load = [];
+        let loadStr = '';
         let rem = target;
 
         // Greedy algorithm: use largest plates first
         for (let p of CONST.AVAILABLE_PLATES) {
             while (rem >= p) {
-                load.push(p);
+                if (loadStr) loadStr += ', ';
+                loadStr += p;
                 rem -= p;
             }
         }
-        return load.length > 0 ? `+ [ ${load.join(', ')} ]` : 'Empty Bar';
+        return loadStr ? `+ [ ${loadStr} ]` : 'Empty Bar';
     },
 };
 
