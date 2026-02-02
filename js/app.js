@@ -17,7 +17,7 @@ const Modal = {
         return new Promise((resolve) => {
             // Null checks for modal elements
             if (!this.el || !this.title || !this.body || !this.actions) {
-                console.error('Modal elements not found in DOM');
+                Logger.error('Modal elements not found in DOM');
                 // Fallback to native alert/confirm
                 if (opts.type === 'confirm') {
                     resolve(confirm(opts.text || opts.title || 'Confirm?'));
@@ -53,7 +53,7 @@ const Modal = {
     },
     close(res) {
         if (!this.el) {
-            console.error('Modal element not found');
+            Logger.error('Modal element not found');
             if (this.resolve) this.resolve(res);
             return;
         }
@@ -105,7 +105,7 @@ const Timer = {
         this.endTime = Date.now() + (sec * 1000);
         const timerDock = document.getElementById('timer-dock');
         if (!timerDock) {
-            console.error('Timer dock element not found');
+            Logger.error('Timer dock element not found');
             return;
         }
         timerDock.classList.add('active');
@@ -124,7 +124,7 @@ const Timer = {
         const s = rem % 60;
         const timerVal = document.getElementById('timer-val');
         if (!timerVal) {
-            console.error('Timer value element not found');
+            Logger.error('Timer value element not found');
             return;
         }
         timerVal.textContent = `${m}:${s.toString().padStart(2,'0')}`;
@@ -133,7 +133,7 @@ const Timer = {
         if (this.interval) clearInterval(this.interval);
         const timerDock = document.getElementById('timer-dock');
         if (!timerDock) {
-            console.error('Timer dock element not found');
+            Logger.error('Timer dock element not found');
             return;
         }
         timerDock.classList.remove('active');
@@ -145,7 +145,7 @@ function render() {
     try {
         const main = document.getElementById('main-content');
         if (!main) {
-            console.error('Main content element not found');
+            Logger.error('Main content element not found');
             return;
         }
 
@@ -173,7 +173,7 @@ function render() {
             case 'settings': renderSettings(main); break;
             case 'protocol': renderProtocol(main); break;
             default:
-                console.warn(`Unknown view: ${State.view}`);
+                Logger.warn(`Unknown view: ${State.view}`);
                 renderToday(main);
         }
 
@@ -181,7 +181,7 @@ function render() {
         // This ensures screen readers announce the new content and keyboard users aren't lost
         main.focus();
     } catch (e) {
-        console.error('Render error:', e);
+        Logger.error('Render error:', e);
         // Try to show error to user
         const main = document.getElementById('main-content');
         if (main) {
@@ -537,20 +537,20 @@ function renderProgress(c) {
 function renderSettings(c) {
     c.innerHTML = `
         <div class="container">
-            <h1>Settings</h1>
+            <h1>${I18n.t('settings.title')}</h1>
             <div class="card">
-                <button class="btn btn-secondary" onclick="window.viewProtocol()" aria-label="View Complete Strength Protocol guide">📖 Protocol Guide</button>
+                <button class="btn btn-secondary" onclick="window.viewProtocol()" aria-label="${I18n.t('settings.protocolGuide')}">${I18n.t('settings.protocolGuide')}</button>
             </div>
             <div class="card">
-                <button class="btn btn-secondary" id="backup-btn">Backup Data</button>
+                <button class="btn btn-secondary" id="backup-btn">${I18n.t('settings.backupData')}</button>
                 <div style="position:relative; margin-top:0.5rem">
-                    <button class="btn btn-secondary" tabindex="-1" aria-hidden="true">Restore Data</button>
-                    <input type="file" onchange="window.imp(this)" aria-label="Restore Data from Backup"
+                    <button class="btn btn-secondary" tabindex="-1" aria-hidden="true">${I18n.t('settings.restoreData')}</button>
+                    <input type="file" onchange="window.imp(this)" aria-label="${I18n.t('settings.restoreData')}"
                            onfocus="this.previousElementSibling.style.outline='2px solid var(--accent)';this.previousElementSibling.style.outlineOffset='2px'"
                            onblur="this.previousElementSibling.style.outline=''"
                            style="position:absolute;top:0;left:0;opacity:0;width:100%;height:100%">
                 </div>
-                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="Factory reset - delete all data">Factory Reset</button>
+                <button class="btn btn-secondary" style="margin-top:0.5rem; color:var(--error)" onclick="window.wipe()" aria-label="${I18n.t('settings.factoryReset')}">${I18n.t('settings.factoryReset')}</button>
             </div>
             <div class="text-xs" style="text-align:center; margin-top:2rem; opacity:0.5">
                 v${CONST.APP_VERSION} (${CONST.STORAGE_VERSION})
@@ -625,7 +625,7 @@ window.updateWarmup = (id) => {
             }
         }
     } catch (e) {
-        console.error('Error updating warmup:', e);
+        Logger.error('Error updating warmup:', e);
     }
 };
 
@@ -640,7 +640,7 @@ window.updateCardio = () => {
             Storage.saveDraft(State.activeSession);
         }
     } catch (e) {
-        console.error('Error updating cardio:', e);
+        Logger.error('Error updating cardio:', e);
     }
 };
 
@@ -658,7 +658,7 @@ window.updateDecompress = (id) => {
             }
         }
     } catch (e) {
-        console.error('Error updating decompress:', e);
+        Logger.error('Error updating decompress:', e);
     }
 };
 
@@ -705,7 +705,7 @@ window.modW = (id, d) => {
     try {
         const el = document.getElementById(`w-${id}`);
         if (!el) {
-            console.error(`Weight input not found: w-${id}`);
+            Logger.error(`Weight input not found: w-${id}`);
             return;
         }
         const currentValue = parseFloat(el.value) || 0;
@@ -725,7 +725,7 @@ window.modW = (id, d) => {
         if (State.activeSession) Storage.saveDraft(State.activeSession);
         Haptics.light();
     } catch (e) {
-        console.error('Error modifying weight:', e);
+        Logger.error('Error modifying weight:', e);
     }
 };
 
@@ -733,7 +733,7 @@ window.togS = (ex, i, max) => {
     try {
         const el = document.getElementById(`s-${ex}-${i}`);
         if (!el) {
-            console.error(`Set button not found: s-${ex}-${i}`);
+            Logger.error(`Set button not found: s-${ex}-${i}`);
             return;
         }
         const isCompleted = el.classList.toggle('completed');
@@ -759,7 +759,7 @@ window.togS = (ex, i, max) => {
             Storage.saveDraft(State.activeSession);
         }
     } catch (e) {
-        console.error('Error toggling set:', e);
+        Logger.error('Error toggling set:', e);
     }
 };
 
@@ -767,13 +767,13 @@ window.swapAlt = (id) => {
     try {
         const selElement = document.getElementById(`alt-${id}`);
         if (!selElement) {
-            console.error(`Alternative selector not found: alt-${id}`);
+            Logger.error(`Alternative selector not found: alt-${id}`);
             return;
         }
         const sel = selElement.value;
         const cfg = EXERCISE_MAP.get(id) || WARMUP_MAP.get(id) || DECOMPRESSION_MAP.get(id);
         if (!cfg) {
-            console.error(`Exercise config not found: ${id}`);
+            Logger.error(`Exercise config not found: ${id}`);
             return;
         }
         const vidElement = document.getElementById(`vid-${id}`);
@@ -826,7 +826,7 @@ window.swapAlt = (id) => {
             Storage.saveDraft(State.activeSession);
         }
     } catch (e) {
-        console.error('Error swapping alternative:', e);
+        Logger.error('Error swapping alternative:', e);
     }
 };
 
@@ -834,7 +834,7 @@ window.swapCardioLink = () => {
     try {
         const cardioTypeElement = document.getElementById('cardio-type');
         if (!cardioTypeElement) {
-            console.error('Cardio type selector not found');
+            Logger.error('Cardio type selector not found');
             return;
         }
         const selName = cardioTypeElement.value;
@@ -848,11 +848,11 @@ window.swapCardioLink = () => {
             }
         }
     } catch (e) {
-        console.error('Error swapping cardio link:', e);
+        Logger.error('Error swapping cardio link:', e);
     }
 };
 
-window.nextPhase = (p) => {
+window.nextPhase = async (p) => {
     try {
         if(p === 'lifting') {
             State.activeSession.warmup = WARMUP.map(w => {
@@ -930,9 +930,9 @@ window.nextPhase = (p) => {
         render();
     } catch (e) {
         Logger.error('Error transitioning phase', { phase: p, error: e.message });
-        console.error('Error transitioning phase:', e);
+        Logger.error('Error transitioning phase:', e);
         ScreenReader.announce('Error saving progress. Please try again.', 'assertive');
-        alert('Error saving progress. Please try again.');
+        await Modal.show({ title: 'Error', text: 'Error saving progress. Please try again.' });
     }
 };
 window.finish = async () => {
@@ -988,9 +988,9 @@ window.finish = async () => {
             sessionId: State.activeSession?.id,
             error: e.message
         });
-        console.error('Error finishing session:', e);
+        Logger.error('Error finishing session:', e);
         ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
-        alert('Failed to save session. Your data may not be saved. Please try exporting as backup.');
+        await Modal.show({ title: 'Error', text: 'Failed to save session. Your data may not be saved. Please try exporting as backup.' });
     }
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
@@ -1205,7 +1205,7 @@ window.drawChart = (id) => {
     try {
         const div = document.getElementById('chart-area');
         if (!div) {
-            console.error('Chart area element not found');
+            Logger.error('Chart area element not found');
             return;
         }
 
@@ -1238,7 +1238,7 @@ window.drawChart = (id) => {
             ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
         </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
     } catch (e) {
-        console.error('Error drawing chart:', e);
+        Logger.error('Error drawing chart:', e);
         const div = document.getElementById('chart-area');
         if (div) {
             div.innerHTML = '<p style="padding:1rem;color:var(--error)">Error rendering chart.</p>';
@@ -1421,7 +1421,7 @@ if (mainContent) {
     });
 
 })().catch(error => {
-    console.error('Fatal initialization error:', error);
+    Logger.error('Fatal initialization error:', error);
     ScreenReader.announce('Failed to initialize app. Please refresh the page.', 'assertive');
-    alert('Failed to initialize app. Please refresh the page.');
+    Modal.show({ title: 'Fatal Error', text: 'Failed to initialize app. Please refresh the page.' });
 });

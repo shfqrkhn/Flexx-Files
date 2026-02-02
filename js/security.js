@@ -251,7 +251,10 @@ export const Sanitizer = {
             const result = parsed.href;
 
             // Cache success results (limit cache size to 100)
-            if (_urlCache.size >= 100) _urlCache.clear();
+            if (_urlCache.size >= 100) {
+                const oldest = _urlCache.keys().next().value;
+                _urlCache.delete(oldest);
+            }
             _urlCache.set(url, result);
 
             return result;
