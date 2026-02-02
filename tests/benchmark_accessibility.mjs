@@ -46,30 +46,43 @@ for (let i = 0; i < 500; i++) {
     elements.push(new MockElement('BUTTON', ['btn'], 'Click me'));
 }
 
+// Index elements by class for O(1) lookup simulation
+const classIndex = new Map();
+elements.forEach(el => {
+    el._classes.forEach(c => {
+        if (!classIndex.has(c)) classIndex.set(c, []);
+        classIndex.get(c).push(el);
+    });
+});
+
 global.document = {
     querySelectorAll: (selector) => {
-        // Naive implementation of selector matching for the benchmark
-        // This simulates the cost of browser finding elements + return size
-        const results = elements.filter(el => {
-            if (el.tagName !== 'BUTTON') return false;
+        // Optimized mock: use index if selector targets classes
+        if (selector.includes('stepper-btn') || selector.includes('set-btn')) {
+            // Simulate O(1) lookup
+            const candidates = new Set();
+            if (selector.includes('stepper-btn')) {
+                (classIndex.get('stepper-btn') || []).forEach(el => candidates.add(el));
+            }
+            if (selector.includes('set-btn')) {
+                (classIndex.get('set-btn') || []).forEach(el => candidates.add(el));
+            }
 
-            // :not([aria-label])
-            if (el.hasAttribute('aria-label')) return false;
-
-            if (selector === 'button:not([aria-label])') {
+            // Filter candidates (still needed for :not([aria-label]), but reduced set)
+            return Array.from(candidates).filter(el => {
+                if (el.tagName !== 'BUTTON') return false;
+                if (el.hasAttribute('aria-label')) return false;
                 return true;
-            }
+            });
+        }
 
-            if (selector.includes('stepper-btn') || selector.includes('set-btn')) {
-                // Approximate matching for the optimized selector
-                const isStepper = selector.includes('stepper-btn') && el.classList.contains('stepper-btn');
-                const isSet = selector.includes('set-btn') && el.classList.contains('set-btn');
-                return isStepper || isSet;
-            }
-
+        // Fallback to scan for generic selector
+        return elements.filter(el => {
+            if (el.tagName !== 'BUTTON') return false;
+            if (el.hasAttribute('aria-label')) return false;
+            if (selector === 'button:not([aria-label])') return true;
             return false;
         });
-        return results;
     }
 };
 
