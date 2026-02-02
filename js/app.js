@@ -66,6 +66,31 @@ const Modal = {
     }
 };
 
+// === PRE-OPTIMIZATION ===
+function preSanitizeConfig() {
+    try {
+        const sanitize = (obj) => {
+            if (obj.video) obj.video = Sanitizer.sanitizeURL(obj.video);
+            if (obj.altLinks) {
+                for (const key in obj.altLinks) {
+                    if (Object.prototype.hasOwnProperty.call(obj.altLinks, key)) {
+                        obj.altLinks[key] = Sanitizer.sanitizeURL(obj.altLinks[key]);
+                    }
+                }
+            }
+        };
+
+        EXERCISES.forEach(sanitize);
+        WARMUP.forEach(sanitize);
+        DECOMPRESSION.forEach(sanitize);
+        CARDIO_OPTIONS.forEach(sanitize);
+
+        Logger.info('Static configuration URLs pre-sanitized');
+    } catch (e) {
+        Logger.error('Failed to pre-sanitize config', { error: e.message });
+    }
+}
+
 // === STATE & TOOLS ===
 const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
 const Haptics = {
@@ -246,7 +271,7 @@ function renderWarmup(c) {
                         <input type="checkbox" class="big-check" id="w-${w.id}" ${isChecked ? 'checked' : ''} onchange="window.updateWarmup('${w.id}')">
                         <div><div id="name-${w.id}">${displayName}</div><div class="text-xs">${w.reps}</div></div>
                     </label>
-                    <a id="vid-${w.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${displayName}">🎥</a>
+                    <a id="vid-${w.id}" href="${vidUrl}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none; padding-left:1rem;" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
                 <details><summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
                     <select id="alt-${w.id}" onchange="window.swapAlt('${w.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${w.name}">
@@ -325,7 +350,7 @@ function renderLifting(c) {
                             <div class="text-xs" style="opacity:0.8; margin-bottom:0.25rem">${ex.sets} sets × ${ex.reps} reps</div>
                             <div id="last-${ex.id}" class="text-xs" style="opacity:0.6; margin-bottom:0.5rem">${lastText}</div>
                         </div>
-                        <a id="vid-${ex.id}" href="${Sanitizer.sanitizeURL(vid)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
+                        <a id="vid-${ex.id}" href="${vid}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
                     <div class="stepper-control">
                         <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
@@ -359,7 +384,7 @@ function renderCardio(c) {
 
     c.innerHTML = `
         <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;"><h3>Selection</h3><a id="cardio-vid" href="${Sanitizer.sanitizeURL(cfg.video)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${cfg.name}">🎥</a></div>
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;"><h3>Selection</h3><a id="cardio-vid" href="${cfg.video}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${cfg.name}">🎥</a></div>
             <div class="text-xs" style="opacity:0.8; margin-bottom:1rem">5 minutes • Moderate steady-state effort</div>
             <select id="cardio-type" onchange="window.swapCardioLink(); window.updateCardio()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}" ${o.name === selectedType ? 'selected' : ''}>${o.name}</option>`).join('')}</select>
             <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
@@ -388,7 +413,7 @@ function renderDecompress(c) {
             <div class="card">
                 <div class="flex-row" style="justify-content:space-between; margin-bottom:0.25rem;">
                     <h3 id="name-${d.id}">${displayName}</h3>
-                    <a id="vid-${d.id}" href="${Sanitizer.sanitizeURL(vidUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
+                    <a id="vid-${d.id}" href="${vidUrl}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
                 <div class="text-xs" style="opacity:0.8; margin-bottom:0.75rem">${d.duration}</div>
                     ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : ''}
@@ -728,7 +753,7 @@ window.swapAlt = (id) => {
         const nameElement = document.getElementById(`name-${id}`);
 
         if (vidElement) {
-            vidElement.href = Sanitizer.sanitizeURL(sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video);
+            vidElement.href = sel && cfg.altLinks[sel] ? cfg.altLinks[sel] : cfg.video;
             vidElement.rel = 'noopener noreferrer';
             vidElement.setAttribute('aria-label', `Watch video for ${sel || cfg.name}`);
         }
@@ -790,7 +815,7 @@ window.swapCardioLink = () => {
         if (cfg) {
             const vidElement = document.getElementById('cardio-vid');
             if (vidElement) {
-                vidElement.href = Sanitizer.sanitizeURL(cfg.video);
+                vidElement.href = cfg.video;
                 vidElement.rel = 'noopener noreferrer';
                 vidElement.setAttribute('aria-label', `Watch video for ${cfg.name}`);
             }
@@ -1207,6 +1232,9 @@ if (mainContent) {
     // 2. Initialize security system
     Security.init(Logger);
     Logger.info('Security system active');
+
+    // Optimization: Pre-sanitize static URLs to avoid repeated parsing in render loops
+    preSanitizeConfig();
 
     // 3. Initialize accessibility system
     Accessibility.init();
