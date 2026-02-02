@@ -452,10 +452,7 @@ export const Storage = {
     reset() {
         // Sentinel: Only clear Flexx Files data, preserving other apps on same origin
         const prefix = CONST.STORAGE_PREFIX || 'flexx_';
-        const keys = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            keys.push(localStorage.key(i));
-        }
+        const keys = Object.keys(localStorage);
 
         keys.forEach(key => {
             if (key.startsWith(prefix)) {
