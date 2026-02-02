@@ -1,13 +1,10 @@
-import { EXERCISES, WARMUP, DECOMPRESSION, CARDIO_OPTIONS, RECOVERY_CONFIG } from './config.js';
+import { EXERCISES, WARMUP, DECOMPRESSION, CARDIO_OPTIONS, RECOVERY_CONFIG, EXERCISE_MAP, WARMUP_MAP, DECOMPRESSION_MAP } from './config.js';
 import { Storage, Calculator, Validator } from './core.js';
 import { Observability, Logger, Metrics, Analytics } from './observability.js';
 import { Accessibility, ScreenReader } from './accessibility.js';
 import { Security, Sanitizer } from './security.js';
 import { I18n, DateFormatter } from './i18n.js';
 import * as CONST from './constants.js';
-
-// Optimization: Create map for O(1) lookup once
-const EXERCISE_MAP = new Map(EXERCISES.map(e => [e.id, e]));
 
 // === MODAL SYSTEM ===
 const Modal = {
@@ -760,7 +757,7 @@ window.swapAlt = (id) => {
             return;
         }
         const sel = selElement.value;
-        const cfg = EXERCISES.find(e => e.id === id) || WARMUP.find(w => w.id === id) || DECOMPRESSION.find(d => d.id === id);
+        const cfg = EXERCISE_MAP.get(id) || WARMUP_MAP.get(id) || DECOMPRESSION_MAP.get(id);
         if (!cfg) {
             console.error(`Exercise config not found: ${id}`);
             return;
@@ -1198,7 +1195,7 @@ window.drawChart = (id) => {
 
         let path = `M ${X(0)} ${Y(data[0].v)}`;
         data.forEach((p,i) => path += ` L ${X(i)} ${Y(p.v)}`);
-        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight progression chart for ${EXERCISES.find(e => e.id === id)?.name || 'exercise'}">
+        div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight progression chart for ${EXERCISE_MAP.get(id)?.name || 'exercise'}">
             <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
             ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
         </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
