@@ -285,10 +285,18 @@ function renderLifting(c) {
             <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
             ${(() => {
                 let exercisesHtml = '';
+                // Optimization: Create Map for O(1) lookup
+                const activeMap = new Map();
+                if (State.activeSession?.exercises) {
+                    for (const e of State.activeSession.exercises) {
+                        activeMap.set(e.id, e);
+                    }
+                }
+
                 for (let j = 0; j < EXERCISES.length; j++) {
                     const ex = EXERCISES[j];
                     // Check state first for persistence
-                    const activeEx = State.activeSession?.exercises?.find(e => e.id === ex.id);
+                    const activeEx = activeMap.get(ex.id);
                     const hasAlt = activeEx?.usingAlternative;
                     const name = Sanitizer.sanitizeString(hasAlt ? activeEx.altName : ex.name);
                     const vid = hasAlt && ex.altLinks?.[activeEx.altName] ? ex.altLinks[activeEx.altName] : ex.video;
