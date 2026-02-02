@@ -300,6 +300,7 @@ export const Storage = {
             session.totalVolume = session.exercises.reduce((sum, ex) => {
                 if (ex.skipped || ex.usingAlternative) return sum;
                 // Look up the exercise config to get the prescribed reps
+                // Optimization: O(1) lookup
                 const cfg = EXERCISE_MAP.get(ex.id);
                 const reps = cfg ? cfg.reps : 0;
                 return sum + (ex.weight * ex.setsCompleted * reps);
