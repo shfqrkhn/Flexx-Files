@@ -225,9 +225,17 @@ function renderRecovery(c) {
 
 function renderWarmup(c) {
     let warmupHtml = '';
+    // Optimization: Create Map for O(1) lookup
+    const activeMap = new Map();
+    if (State.activeSession?.warmup) {
+        for (const w of State.activeSession.warmup) {
+            activeMap.set(w.id, w);
+        }
+    }
+
     for (let i = 0; i < WARMUP.length; i++) {
         const w = WARMUP[i];
-        const activeW = State.activeSession?.warmup?.find(x => x.id === w.id);
+        const activeW = activeMap.get(w.id);
         const isChecked = activeW ? activeW.completed : false;
         const altUsed = activeW ? activeW.altUsed : '';
         const displayName = Sanitizer.sanitizeString(altUsed || w.name);
@@ -369,9 +377,17 @@ function renderCardio(c) {
 
 function renderDecompress(c) {
     let decompressHtml = '';
+    // Optimization: Create Map for O(1) lookup
+    const activeMap = new Map();
+    if (State.activeSession?.decompress) {
+        for (const d of State.activeSession.decompress) {
+            activeMap.set(d.id, d);
+        }
+    }
+
     for (let i = 0; i < DECOMPRESSION.length; i++) {
         const d = DECOMPRESSION[i];
-        const activeD = State.activeSession?.decompress?.find(x => x.id === d.id);
+        const activeD = activeMap.get(d.id);
         const isChecked = activeD ? activeD.completed : false;
         const val = activeD ? activeD.val : '';
         const altUsed = activeD ? activeD.altUsed : '';
