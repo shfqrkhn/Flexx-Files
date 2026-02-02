@@ -18,6 +18,9 @@ const SANITIZE_MAP = {
 };
 const SANITIZE_REGEX = /[<>"'\/]/g;
 
+// Module-level cache for URL sanitization
+const _urlCache = new Map();
+
 /**
  * Internal recursive sanitizer that mimics JSON.parse(JSON.stringify(x))
  * but avoids the overhead of serialization and parsing.
@@ -217,6 +220,11 @@ export const Sanitizer = {
      * Defense-in-depth: pre-validate before URL parsing to prevent encoding bypasses
      */
     sanitizeURL(url) {
+        // Optimization: Check cache first
+        if (typeof url === 'string' && _urlCache.has(url)) {
+            return _urlCache.get(url);
+        }
+
         try {
             // Type check
             if (typeof url !== 'string' || !url) {
@@ -250,7 +258,13 @@ export const Sanitizer = {
             }
 
             // Return normalized URL to prevent any residual encoding issues
-            return parsed.href;
+            const result = parsed.href;
+
+            // Cache success results (limit cache size to 100)
+            if (_urlCache.size >= 100) _urlCache.clear();
+            _urlCache.set(url, result);
+
+            return result;
         } catch (e) {
             Logger.warn('Invalid URL format', { error: e.message });
             return '#';
