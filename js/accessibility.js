@@ -363,10 +363,26 @@ export const ContrastChecker = {
         Logger.info('Running contrast audit');
         const results = [];
 
-        document.querySelectorAll('*').forEach(el => {
-            const text = el.textContent.trim();
-            if (text.length === 0) return;
+        // Optimization: Use TreeWalker to traverse elements
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_ELEMENT,
+            {
+                acceptNode: (node) => {
+                    // Check if element has any direct text node children with non-empty text
+                    for (let i = 0; i < node.childNodes.length; i++) {
+                        const child = node.childNodes[i];
+                        if (child.nodeType === 3 && child.nodeValue.trim().length > 0) {
+                            return NodeFilter.FILTER_ACCEPT;
+                        }
+                    }
+                    return NodeFilter.FILTER_SKIP;
+                }
+            }
+        );
 
+        while (walker.nextNode()) {
+            const el = walker.currentNode;
             const computed = window.getComputedStyle(el);
             const fg = computed.color;
             const bg = computed.backgroundColor;
@@ -376,7 +392,7 @@ export const ContrastChecker = {
             if (fg && bg) {
                 Logger.debug('Contrast check', { element: el.tagName, fg, bg });
             }
-        });
+        }
 
         return results;
     }
