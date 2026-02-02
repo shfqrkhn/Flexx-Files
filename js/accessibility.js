@@ -162,7 +162,7 @@ export const AriaLabels = {
     },
 
     enhanceButtons() {
-        document.querySelectorAll('button:not([aria-label])').forEach(btn => {
+        document.querySelectorAll('button.stepper-btn:not([aria-label]), button.set-btn:not([aria-label])').forEach(btn => {
             const text = btn.textContent.trim();
             if (!text) {
                 // Button has no text, try to infer purpose from context
