@@ -1308,6 +1308,7 @@ if (mainContent) {
         // Final draft save before unload
         if (State.activeSession) {
             Storage.saveDraft(State.activeSession);
+            Storage.flushDraft();
         }
     });
 
@@ -1316,6 +1317,7 @@ if (mainContent) {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden' && State.activeSession) {
             Storage.saveDraft(State.activeSession);
+            Storage.flushDraft();
             Storage.flushPersistence();
             Logger.debug('Draft saved on visibility change', { id: State.activeSession.id });
         }
@@ -1325,6 +1327,7 @@ if (mainContent) {
     window.addEventListener('pagehide', () => {
         if (State.activeSession) {
             Storage.saveDraft(State.activeSession);
+            Storage.flushDraft();
             Storage.flushPersistence();
             Logger.debug('Draft saved on pagehide', { id: State.activeSession.id });
         }
