@@ -211,44 +211,44 @@ function renderRecovery(c) {
         const nextDate = check.nextAvailable ? Validator.formatDate(check.nextAvailable) : '';
         c.innerHTML = `
             <div class="container">
-                <h1>⏸️ Rest Required</h1>
+                <h1>⏸️ ${I18n.t('recovery.restRequired')}</h1>
                 <div class="card">
-                    <h3>You need 24-48 hours between workouts</h3>
+                    <h3>${I18n.t('recovery.restDesc')}</h3>
                     <p style="margin-top:1rem; color:var(--text-secondary)">
                         <strong style="color:var(--accent)">${check.hours} hours</strong> remaining
                     </p>
-                    ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">Next available: ${nextDate}</p>` : ''}
-                    <p class="text-xs" style="margin-top:1rem; opacity:0.7">Rest is when your muscles grow stronger. Come back when you're fully recovered.</p>
+                    ${nextDate ? `<p class="text-xs" style="margin-top:0.5rem">${I18n.t('recovery.nextWorkout', { date: nextDate })}</p>` : ''}
+                    <p class="text-xs" style="margin-top:1rem; opacity:0.7">${I18n.t('recovery.restTip')}</p>
                 </div>
-                <button class="btn btn-secondary" onclick="window.skipRest()" aria-label="Override rest requirement and train anyway">Train Anyway</button>
+                <button class="btn btn-secondary" onclick="window.skipRest()" aria-label="Override rest requirement and train anyway">${I18n.t('recovery.trainAnyway')}</button>
             </div>`;
         return;
     }
     c.innerHTML = `
         <div class="container">
-            <h1>How do you feel?</h1>
-            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">Assess yourself immediately before training.</p>
+            <h1>${I18n.t('recovery.title')}</h1>
+            <p class="text-xs" style="margin-bottom:1rem; text-align:center; opacity:0.8">${I18n.t('recovery.subtitle')}</p>
             ${check.isFirst ? `
                 <div class="card" style="border-color:var(--accent)">
-                    <h3>🎯 Calibration Day</h3>
-                    <p class="text-xs">Find a weight where you can complete 12 reps with good form but have 2 reps left in the tank (RPE 8). Stop sets at 12.</p>
+                    <h3>🎯 ${I18n.t('recovery.calibration')}</h3>
+                    <p class="text-xs">${I18n.t('recovery.calibrationDesc')}</p>
                 </div>` : ''}
             ${check.warning ? `
                 <div class="card" style="border-color:var(--warning)">
-                    <h3>⚠️ Long Gap Detected</h3>
-                    <p class="text-xs">It's been ${check.days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.</p>
+                    <h3>⚠️ ${I18n.t('recovery.longGap')}</h3>
+                    <p class="text-xs">${I18n.t('recovery.longGapDesc', { days: check.days })}</p>
                 </div>` : ''}
             <button type="button" class="card" onclick="window.setRec('green')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
-                <h3 style="color:var(--success)">✓ Green - Full Strength</h3>
-                <p class="text-xs">7+ hours sleep, no pain. Train at scheduled weights.</p>
+                <h3 style="color:var(--success)">✓ ${I18n.t('recovery.green')}</h3>
+                <p class="text-xs">${I18n.t('recovery.greenDesc')}</p>
             </button>
             <button type="button" class="card" onclick="window.setRec('yellow')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
-                <h3 style="color:var(--warning)">⚠ Yellow - Moderate Recovery</h3>
-                <p class="text-xs">5–6 hours sleep, general stiffness or fatigue. Weights reduced by 10%.</p>
+                <h3 style="color:var(--warning)">⚠ ${I18n.t('recovery.yellow')}</h3>
+                <p class="text-xs">${I18n.t('recovery.yellowDesc')}</p>
             </button>
             <button type="button" class="card" onclick="window.setRec('red')" style="cursor:pointer; width:100%; text-align:left; font-family:inherit; font-size:inherit; color:inherit">
-                <h3 style="color:var(--error)">✕ Red - Poor Recovery</h3>
-                <p class="text-xs">< 5 hours sleep, acute pain, or illness. Do Not Lift. Go for a walk only.</p>
+                <h3 style="color:var(--error)">✕ ${I18n.t('recovery.red')}</h3>
+                <p class="text-xs">${I18n.t('recovery.redDesc')}</p>
             </button>
         </div>`;
 }
@@ -298,13 +298,13 @@ function renderWarmup(c) {
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:1rem;">
-                <h1>Warmup</h1>
-                <span class="text-xs" style="opacity:0.8">Circuit • No Rest</span>
+                <h1>${I18n.t('workout.warmup')}</h1>
+                <span class="text-xs" style="opacity:0.8">${I18n.t('workout.warmupSubtitle')}</span>
             </div>
             <div class="card">
                 ${warmupHtml}
             </div>
-            <button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="Start lifting phase">Start Lifting</button>
+            <button class="btn btn-primary" onclick="window.nextPhase('lifting')" aria-label="${I18n.t('workout.startLifting')}">${I18n.t('workout.startLifting')}</button>
         </div>`;
 }
 
@@ -314,13 +314,13 @@ function renderLifting(c) {
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;">
-                <h1>Lifting</h1>
+                <h1>${I18n.t('workout.lifting')}</h1>
                 <div class="flex-row" style="gap:0.5rem">
-                    ${isDeload ? `<span class="text-xs" style="border:1px solid var(--accent); color:var(--accent); padding:0.25rem 0.5rem; border-radius:0.75rem">DELOAD WEEK</span>` : ''}
+                    ${isDeload ? `<span class="text-xs" style="border:1px solid var(--accent); color:var(--accent); padding:0.25rem 0.5rem; border-radius:0.75rem">${I18n.t('workout.deload')}</span>` : ''}
                     <span class="text-xs" style="border:1px solid var(--border); padding:0.25rem 0.5rem; border-radius:0.75rem">${State.recovery.toUpperCase()}</span>
                 </div>
             </div>
-            <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">Tempo: 3s down (eccentric) • 1s up (concentric)</p>
+            <p class="text-xs" style="margin-bottom:1.5rem; text-align:center; opacity:0.8">${I18n.t('workout.tempo')}</p>
             ${(() => {
                 let exercisesHtml = '';
                 // Optimization: Create Map for O(1) lookup
@@ -343,7 +343,7 @@ function renderLifting(c) {
                     // Name Display Fix: Pass actual name (alternative if used) for history lookup
                     const lookupName = hasAlt ? activeEx.altName : ex.id;
                     const last = Calculator.getLastCompletedExercise(lookupName, sessions);
-                    const lastText = last ? `Last: ${last.weight} lbs` : 'First Session';
+                    const lastText = last ? I18n.t('exercise.last', { weight: last.weight }) : I18n.t('exercise.firstSession');
 
                     // Optimization: Use for loop to avoid garbage collection pressure from Array.from
                     let setButtonsHtml = '';
@@ -351,7 +351,7 @@ function renderLifting(c) {
                         const isSetDone = activeEx && i < activeEx.setsCompleted;
                         const completedClass = isSetDone ? ' completed' : '';
                         const ariaPressed = isSetDone ? 'true' : 'false';
-                        setButtonsHtml += `<button type="button" class="set-btn${completedClass}" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="Set ${i+1}" aria-pressed="${ariaPressed}">${i+1}</button>`;
+                        setButtonsHtml += `<button type="button" class="set-btn${completedClass}" id="s-${ex.id}-${i}" onclick="window.togS('${ex.id}',${i},${ex.sets})" aria-label="${I18n.t('a11y.set', { number: i+1 })}" aria-pressed="${ariaPressed}">${i+1}</button>`;
                     }
 
                     exercisesHtml += `
@@ -366,16 +366,16 @@ function renderLifting(c) {
                         <a id="vid-${ex.id}" href="${vid}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${name}">🎥</a>
                     </div>
                     <div class="stepper-control">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="Decrease weight for ${name}">−</button>
-                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="Weight for ${name}">
-                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="Increase weight for ${name}">+</button>
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', -2.5)" aria-label="${I18n.t('a11y.decreaseWeight')} for ${name}">−</button>
+                        <input type="number" class="stepper-value" id="w-${ex.id}" value="${w}" step="2.5" readonly inputmode="none" aria-label="${I18n.t('a11y.weightPounds')} for ${name}">
+                        <button class="stepper-btn" onclick="window.modW('${ex.id}', 2.5)" aria-label="${I18n.t('a11y.increaseWeight')} for ${name}">+</button>
                     </div>
-                    <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} / side</div>
+                    <div id="pl-${ex.id}" class="text-xs" style="text-align:center; font-family:monospace; margin:0.5rem 0 1rem 0; color:var(--text-secondary)" aria-live="polite">${Calculator.getPlateLoad(w)} ${I18n.t('exercise.perSide')}</div>
                     <div class="set-group" role="group" aria-label="Sets for ${name}">
                         ${setButtonsHtml}
                     </div>
                     <details class="mt-4" style="margin-top:1rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                        <summary class="text-xs">Alternatives</summary>
+                        <summary class="text-xs">${I18n.t('exercise.alternatives')}</summary>
                         <select id="alt-${ex.id}" onchange="window.swapAlt('${ex.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none" aria-label="Select alternative for ${ex.name}">
                             <option value="">${ex.name}</option>
                             ${ex.alternatives.map(a=>`<option value="${a}" ${hasAlt && activeEx.altName === a ? 'selected' : ''}>${a}</option>`).join('')}
@@ -385,7 +385,7 @@ function renderLifting(c) {
                 }
                 return exercisesHtml;
             })()}
-            <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="Proceed to cardio phase">Next: Cardio</button>
+            <button class="btn btn-primary" onclick="window.nextPhase('cardio')" aria-label="${I18n.t('workout.nextCardio')}">${I18n.t('workout.nextCardio')}</button>
         </div>`;
 }
 
@@ -396,13 +396,13 @@ function renderCardio(c) {
     const cfg = CARDIO_OPTIONS.find(o => o.name === selectedType) || CARDIO_OPTIONS[0];
 
     c.innerHTML = `
-        <div class="container"><h1>Cardio</h1><div class="card">
-            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;"><h3>Selection</h3><a id="cardio-vid" href="${cfg.video}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${cfg.name}">🎥</a></div>
-            <div class="text-xs" style="opacity:0.8; margin-bottom:1rem">5 minutes • Moderate steady-state effort</div>
+        <div class="container"><h1>${I18n.t('workout.cardio')}</h1><div class="card">
+            <div class="flex-row" style="justify-content:space-between; margin-bottom:0.5rem;"><h3>${I18n.t('exercise.selection')}</h3><a id="cardio-vid" href="${cfg.video}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${cfg.name}">🎥</a></div>
+            <div class="text-xs" style="opacity:0.8; margin-bottom:1rem">${I18n.t('workout.cardioSubtitle')}</div>
             <select id="cardio-type" onchange="window.swapCardioLink(); window.updateCardio()" style="width:100%; padding:1rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem;" aria-label="Select cardio type">${CARDIO_OPTIONS.map(o=>`<option value="${o.name}" ${o.name === selectedType ? 'selected' : ''}>${o.name}</option>`).join('')}</select>
-            <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="Start 5 minute cardio timer">Start 5m Timer</button>
-            <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done" ${isCompleted ? 'checked' : ''} onchange="window.updateCardio()"><span>Completed</span></label>
-        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')" aria-label="Proceed to decompression phase">Next: Decompress</button></div>`;
+            <button class="btn btn-secondary" onclick="window.startCardio()" aria-label="${I18n.t('exercise.startTimer')}">${I18n.t('exercise.startTimer')}</button>
+            <label class="checkbox-wrapper" style="margin-top:1rem; cursor:pointer" for="cardio-done"><input type="checkbox" class="big-check" id="cardio-done" ${isCompleted ? 'checked' : ''} onchange="window.updateCardio()"><span>${I18n.t('exercise.completed')}</span></label>
+        </div><button class="btn btn-primary" onclick="window.nextPhase('decompress')" aria-label="${I18n.t('workout.nextDecompress')}">${I18n.t('workout.nextDecompress')}</button></div>`;
 }
 
 function renderDecompress(c) {
@@ -438,9 +438,9 @@ function renderDecompress(c) {
                 </div>
                 <div class="text-xs" style="opacity:0.8; margin-bottom:0.75rem">${d.duration}</div>
                     ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : ''}
-                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>Completed</span></label>
+                <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>${I18n.t('exercise.completed')}</span></label>
                 <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
-                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">Alternatives</summary>
+                    <summary class="text-xs" style="opacity:0.7; cursor:pointer">${I18n.t('exercise.alternatives')}</summary>
                     <select id="alt-${d.id}" onchange="window.swapAlt('${d.id}')" style="width:100%; margin-top:0.5rem; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; border-radius:var(--radius-sm);" aria-label="Select alternative for ${d.name}">
                         <option value="">Default</option>
                         ${optionsHtml}
@@ -450,9 +450,9 @@ function renderDecompress(c) {
     }
 
     c.innerHTML = `
-        <div class="container"><h1>Decompress</h1>
+        <div class="container"><h1>${I18n.t('workout.decompress')}</h1>
             ${decompressHtml}
-            <button class="btn btn-primary" onclick="window.finish()" aria-label="Save workout and finish session">Save & Finish</button>
+            <button class="btn btn-primary" onclick="window.finish()" aria-label="${I18n.t('workout.saveFinish')}">${I18n.t('workout.saveFinish')}</button>
         </div>`;
 }
 
@@ -467,12 +467,12 @@ function renderHistory(c) {
 
     let historyHtml = '';
     if (s.length === 0) {
-        historyHtml = '<div class="card"><p>No logs yet.</p></div>';
+        historyHtml = `<div class="card"><p>${I18n.t('history.noLogs')}</p></div>`;
     } else {
         for (let i = 0; i < s.length; i++) {
             const x = s[i];
 
-            let warmupHtml = 'No Data';
+            let warmupHtml = I18n.t('history.noData');
             if (x.warmup) {
                 warmupHtml = '';
                 for (let j = 0; j < x.warmup.length; j++) {
@@ -492,8 +492,8 @@ function renderHistory(c) {
             }
 
             const decompressStatus = Array.isArray(x.decompress) ?
-                (x.decompress.every(d => d.completed) ? 'Full Session' : 'Partial') :
-                (x.decompress?.completed ? 'Completed' : 'Skipped');
+                (x.decompress.every(d => d.completed) ? I18n.t('history.fullSession') : I18n.t('history.partial')) :
+                (x.decompress?.completed ? I18n.t('exercise.completed') : I18n.t('exercise.skip'));
 
             historyHtml += `
         <div class="card">
@@ -502,24 +502,24 @@ function renderHistory(c) {
                 <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
             </div>
             <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
-                <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">View Details</summary>
-                <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">WARMUP</div>
+                <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">${I18n.t('history.viewDetails')}</summary>
+                <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">${I18n.t('history.warmup')}</div>
                 <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
-                <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">LIFTING</div>
+                <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">${I18n.t('history.lifting')}</div>
                 ${exercisesHtml}
-                <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">FINISHER</div>
+                <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">${I18n.t('history.finisher')}</div>
                 <div class="text-xs">
-                    Cardio: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
-                    Decompress: ${decompressStatus}
+                    ${I18n.t('workout.cardio')}: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
+                    ${I18n.t('workout.decompress')}: ${decompressStatus}
                 </div>
             </details>
         </div>`;
         }
     }
 
-    c.innerHTML = `<div class="container"><h1>History</h1>
+    c.innerHTML = `<div class="container"><h1>${I18n.t('history.title')}</h1>
         ${historyHtml}
-        ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">Load More (${sessions.length - limit} remaining)</button>` : ''}
+        ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">${I18n.t('history.loadMore', { remaining: sessions.length - limit })}</button>` : ''}
         </div>`;
 
     const loadMoreBtn = c.querySelector('#load-more-btn');
@@ -530,7 +530,7 @@ function renderHistory(c) {
 }
 
 function renderProgress(c) {
-    c.innerHTML = `<div class="container"><h1>Progress</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" aria-label="Select exercise for progress chart" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
+    c.innerHTML = `<div class="container"><h1>${I18n.t('progress.title')}</h1><div class="card"><select id="chart-ex" onchange="window.drawChart(this.value)" aria-label="Select exercise for progress chart" style="width:100%; padding:0.5rem; background:var(--bg-secondary); color:white; border:none; margin-bottom:1rem; border-radius:var(--radius-sm);">${EXERCISES.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select><div id="chart-area" style="min-height:250px"></div></div></div>`;
     setTimeout(()=>window.drawChart('hinge'),100);
 }
 
@@ -563,7 +563,7 @@ function renderSettings(c) {
             try {
                 Storage.exportData();
             } catch(e) {
-                Modal.show({ title: 'Export Failed', text: e.message });
+                Modal.show({ title: I18n.t('errors.exportFailed'), text: e.message });
             }
         });
     }
@@ -573,14 +573,14 @@ function renderProtocol(c) {
     c.innerHTML = `
         <div class="container">
             <div class="flex-row" style="margin-bottom:1rem">
-                <button class="btn btn-secondary" style="width:auto; padding:0.5rem 1rem" onclick="window.closeProtocol()" aria-label="Back to settings">← Back</button>
+                <button class="btn btn-secondary" style="width:auto; padding:0.5rem 1rem" onclick="window.closeProtocol()" aria-label="${I18n.t('protocol.back')}">${I18n.t('protocol.back')}</button>
             </div>
-            <h1>The Protocol</h1>
+            <h1>${I18n.t('protocol.title')}</h1>
             <div class="card">
-                <h3 style="color:var(--accent)">Hygiene Protocol</h3>
-                <p class="text-xs" style="margin-bottom:1rem">All movements are designed to be performed standing, seated, or on a bench to ensure hygiene and minimize floor contact.</p>
+                <h3 style="color:var(--accent)">${I18n.t('protocol.hygiene')}</h3>
+                <p class="text-xs" style="margin-bottom:1rem">${I18n.t('protocol.hygieneDesc')}</p>
 
-                <h3 style="color:var(--accent)">Overview</h3>
+                <h3 style="color:var(--accent)">${I18n.t('protocol.overview')}</h3>
                 <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
                     <li><strong>Schedule:</strong> 3 days/week (e.g., Mon/Wed/Fri)</li>
                     <li><strong>Time:</strong> 58 Minutes</li>
@@ -589,7 +589,7 @@ function renderProtocol(c) {
             </div>
 
             <div class="card">
-                <h3 style="color:var(--warning)">Fault Tolerance</h3>
+                <h3 style="color:var(--warning)">${I18n.t('protocol.faultTolerance')}</h3>
                 <div style="display:grid; grid-template-columns: 1fr 1.5fr; gap:0.5rem; font-size:0.8rem; margin-top:0.5rem">
                     <div>Missed 1</div><div>Slide schedule (maintain 48h gap)</div>
                     <div>Missed 2+</div><div>Reduce weights 10%</div>
@@ -599,8 +599,8 @@ function renderProtocol(c) {
             </div>
 
             <div class="card" style="border-color:var(--error)">
-                <h3>🚨 Gym Closed?</h3>
-                <p class="text-xs" style="margin-bottom:0.5rem">Emergency Bodyweight Circuit. 4 Rounds, AMRAP, 90s rest between rounds.</p>
+                <h3>🚨 ${I18n.t('protocol.gymClosed')}</h3>
+                <p class="text-xs" style="margin-bottom:0.5rem">${I18n.t('protocol.emergencyCircuit')}</p>
                 <ul class="text-xs" style="padding-left:1.2rem; line-height:1.6">
                     <li><strong>Push:</strong> Incline Push-ups (Hands on furniture)</li>
                     <li><strong>Legs:</strong> Bodyweight Squats (Tempo: 3s down)</li>
@@ -667,13 +667,13 @@ window.setRec = async (r) => {
 
     if (r === 'red') {
         Logger.info('Red recovery selected - confirming override', { recovery: r });
-        ScreenReader.announce('Red recovery status selected. Rest day recommended.');
+        ScreenReader.announce(I18n.t('modal.lowRecovery'));
         const proceed = await Modal.show({
             type: 'confirm',
-            title: 'Rest Day Recommended',
-            text: 'Your body needs recovery. Training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead.\n\nAre you sure you want to train anyway?',
+            title: I18n.t('modal.lowRecovery'),
+            text: I18n.t('modal.restWarning'),
             danger: true,
-            okText: 'Train Anyway'
+            okText: I18n.t('modal.trainAnyway')
         });
         if (!proceed) {
             Analytics.track('recovery_selected', { status: 'red', action: 'skipped' });
@@ -695,7 +695,10 @@ window.setRec = async (r) => {
 
     Logger.info('Workout started', { recovery: r, sessionId: State.activeSession.id });
     Analytics.track('recovery_selected', { status: r });
-    ScreenReader.announce(`${r === 'green' ? 'Full strength' : 'Reduced weight'} recovery selected. Starting warmup.`);
+
+    // Announce recovery selection
+    const recoveryText = r === 'green' ? I18n.t('recovery.green') : (r === 'yellow' ? I18n.t('recovery.yellow') : I18n.t('recovery.red'));
+    ScreenReader.announce(`${recoveryText} selected. Starting warmup.`);
 
     Haptics.success(); // Tactile feedback for start
     Metrics.measure('recovery-select', 'recovery-select-start');
@@ -919,10 +922,10 @@ window.nextPhase = async (p) => {
         Analytics.track('phase_transition', { phase: p });
 
         const phaseNames = {
-            warmup: 'Warmup',
-            lifting: 'Lifting',
-            cardio: 'Cardio',
-            decompress: 'Decompression'
+            warmup: I18n.t('workout.warmup'),
+            lifting: I18n.t('workout.lifting'),
+            cardio: I18n.t('workout.cardio'),
+            decompress: I18n.t('workout.decompress')
         };
         ScreenReader.announce(`Starting ${phaseNames[p] || p} phase`);
 
@@ -931,13 +934,13 @@ window.nextPhase = async (p) => {
     } catch (e) {
         Logger.error('Error transitioning phase', { phase: p, error: e.message });
         Logger.error('Error transitioning phase:', e);
-        ScreenReader.announce('Error saving progress. Please try again.', 'assertive');
-        await Modal.show({ title: 'Error', text: 'Error saving progress. Please try again.' });
+        ScreenReader.announce(I18n.t('modal.saveError'), 'assertive');
+        await Modal.show({ title: I18n.t('modal.error'), text: I18n.t('modal.saveError') });
     }
 };
 window.finish = async () => {
     try {
-        if(!await Modal.show({ type: 'confirm', title: 'Finish?', text: 'Save this session?' })) return;
+        if(!await Modal.show({ type: 'confirm', title: I18n.t('modal.finish'), text: I18n.t('modal.saveSession') })) return;
 
         State.activeSession.decompress = DECOMPRESSION.map(d => {
             const valElement = document.getElementById(`val-${d.id}`);
@@ -989,8 +992,8 @@ window.finish = async () => {
             error: e.message
         });
         Logger.error('Error finishing session:', e);
-        ScreenReader.announce('Failed to save workout. Please try exporting your data.', 'assertive');
-        await Modal.show({ title: 'Error', text: 'Failed to save session. Your data may not be saved. Please try exporting as backup.' });
+        ScreenReader.announce(I18n.t('errors.saveFailed'), 'assertive');
+        await Modal.show({ title: I18n.t('modal.error'), text: I18n.t('errors.saveFailed') });
     }
 };
 window.skipTimer = () => { Haptics.heavy(); Timer.stop(); };
@@ -1021,16 +1024,16 @@ window.closeProtocol = () => {
     render();
 };
 window.del = async (id) => {
-    if(await Modal.show({type:'confirm',title:'Delete?',danger:true})) {
+    if(await Modal.show({type:'confirm',title:I18n.t('modal.delete'),danger:true})) {
         try {
             Storage.deleteSession(id);
             render();
         } catch(e) {
-            Modal.show({ title: 'Error', text: e.message });
+            Modal.show({ title: I18n.t('modal.error'), text: e.message });
         }
     }
 };
-window.wipe = async () => { if(await Modal.show({type:'confirm',title:'RESET ALL?',danger:true})) Storage.reset(); };
+window.wipe = async () => { if(await Modal.show({type:'confirm',title:I18n.t('modal.reset'),danger:true})) Storage.reset(); };
 window.imp = (el) => {
     const file = el.files[0];
     if (!file) return;
@@ -1051,14 +1054,14 @@ window.imp = (el) => {
     r.onload = async e => {
         const result = Storage.validateImport(e.target.result);
         if (!result.valid) {
-            Modal.show({ title: 'Import Failed', text: result.error || 'Invalid file format.' });
+            Modal.show({ title: I18n.t('modal.invalidFile'), text: result.error || 'Invalid file format.' });
             return;
         }
 
         if (await Modal.show({
             type: 'confirm',
-            title: 'Import Data?',
-            text: `Import ${result.sessions.length} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.`
+            title: I18n.t('settings.restoreData'),
+            text: I18n.t('modal.importConfirm', { count: result.sessions.length })
         })) {
             Storage.applyImport(result.sessions);
         }
@@ -1212,7 +1215,7 @@ window.drawChart = (id) => {
         const { data, minVal, maxVal } = ChartCache.getData(id);
 
         if (data.length < 2) {
-            div.innerHTML = '<p style="padding:1rem;color:var(--text-secondary)">Need 2+ logs.</p>';
+            div.innerHTML = `<p style="padding:1rem;color:var(--text-secondary)">${I18n.t('progress.needLogs')}</p>`;
             return;
         }
 
@@ -1241,7 +1244,7 @@ window.drawChart = (id) => {
         Logger.error('Error drawing chart:', e);
         const div = document.getElementById('chart-area');
         if (div) {
-            div.innerHTML = '<p style="padding:1rem;color:var(--error)">Error rendering chart.</p>';
+            div.innerHTML = `<p style="padding:1rem;color:var(--error)">${I18n.t('progress.errorRendering')}</p>`;
         }
     }
 };
@@ -1304,8 +1307,8 @@ if (mainContent) {
     if (draft) {
         const restore = await Modal.show({
             type: 'confirm',
-            title: 'Recover Session?',
-            text: `Found unsaved session from ${DateFormatter.relative(draft.date)}. Restore it?`
+            title: I18n.t('modal.recoverSession'),
+            text: I18n.t('modal.recoverDraft', { time: DateFormatter.relative(draft.date) })
         });
         if (restore) {
             State.activeSession = draft;
@@ -1351,10 +1354,10 @@ if (mainContent) {
     // Update notification handler
     function showUpdateNotification(worker) {
         Modal.show({
-            title: '✨ Update Available',
-            text: 'A new version of Flexx Files is ready. Reload to apply the latest improvements and fixes.',
+            title: I18n.t('modal.updateAvailable'),
+            text: I18n.t('modal.updateText'),
             type: 'confirm',
-            okText: 'Reload Now'
+            okText: I18n.t('modal.reloadNow')
         }).then(reload => {
             if (reload) {
                 worker.postMessage({ type: 'SKIP_WAITING' });
@@ -1422,6 +1425,6 @@ if (mainContent) {
 
 })().catch(error => {
     Logger.error('Fatal initialization error:', error);
-    ScreenReader.announce('Failed to initialize app. Please refresh the page.', 'assertive');
-    Modal.show({ title: 'Fatal Error', text: 'Failed to initialize app. Please refresh the page.' });
+    ScreenReader.announce(I18n.t('modal.initError'), 'assertive');
+    Modal.show({ title: I18n.t('modal.fatalError'), text: I18n.t('modal.initError') });
 });

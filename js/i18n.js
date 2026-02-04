@@ -25,23 +25,36 @@ const translations = {
 
         // Recovery states
         recovery: {
-            title: 'Ready?',
-            green: 'Full Strength',
-            yellow: '-10% Weight',
-            red: 'Stop. Walk only.',
+            title: 'How do you feel?',
+            subtitle: 'Assess yourself immediately before training.',
+            green: 'Green - Full Strength',
+            greenDesc: '7+ hours sleep, no pain. Train at scheduled weights.',
+            yellow: 'Yellow - Moderate Recovery',
+            yellowDesc: '5–6 hours sleep, general stiffness or fatigue. Weights reduced by 10%.',
+            red: 'Red - Poor Recovery',
+            redDesc: '< 5 hours sleep, acute pain, or illness. Do Not Lift. Go for a walk only.',
             firstSession: 'First Session',
+            calibration: 'Calibration Day',
+            calibrationDesc: 'Find a weight where you can complete 12 reps with good form but have 2 reps left in the tank (RPE 8). Stop sets at 12.',
             firstSessionDesc: 'Find 12-rep max weights.',
-            longGap: 'Long Gap',
-            longGapDesc: 'Weights -10% safety reset.',
+            longGap: 'Long Gap Detected',
+            longGapDesc: "It's been {days} days. For safety, weights have been reduced 10%. Better to start light and progress quickly.",
             restRequired: 'Rest Required',
-            nextWorkout: 'Next workout in: {hours} hours'
+            restDesc: 'You need 24-48 hours between workouts',
+            restTip: 'Rest is when your muscles grow stronger. Come back when you\'re fully recovered.',
+            nextWorkout: 'Next available: {date}',
+            trainAnyway: 'Train Anyway'
         },
 
         // Workout phases
         workout: {
             warmup: 'Warmup',
+            warmupSubtitle: 'Circuit • No Rest',
             lifting: 'Lifting',
+            deload: 'DELOAD WEEK',
+            tempo: 'Tempo: 3s down (eccentric) • 1s up (concentric)',
             cardio: 'Cardio',
+            cardioSubtitle: '5 minutes • Moderate steady-state effort',
             decompress: 'Decompress',
             startLifting: 'Start Lifting',
             nextCardio: 'Next: Cardio',
@@ -72,7 +85,8 @@ const translations = {
             finisher: 'FINISHER',
             noData: 'No Data',
             partial: 'Partial',
-            fullSession: 'Full Session'
+            fullSession: 'Full Session',
+            loadMore: 'Load More ({remaining} remaining)'
         },
 
         // Progress
@@ -96,6 +110,18 @@ const translations = {
             complianceDesc: 'WCAG 2.1 AA compliant'
         },
 
+        // Protocol
+        protocol: {
+            title: 'The Protocol',
+            back: '← Back',
+            hygiene: 'Hygiene Protocol',
+            hygieneDesc: 'All movements are designed to be performed standing, seated, or on a bench to ensure hygiene and minimize floor contact.',
+            overview: 'Overview',
+            faultTolerance: 'Fault Tolerance',
+            gymClosed: 'Gym Closed?',
+            emergencyCircuit: 'Emergency Bodyweight Circuit. 4 Rounds, AMRAP, 90s rest between rounds.'
+        },
+
         // Modals
         modal: {
             confirm: 'Confirm?',
@@ -106,10 +132,21 @@ const translations = {
             finish: 'Finish?',
             saveSession: 'Save this session?',
             stop: 'Stop',
-            lowRecovery: 'Low recovery. Walk only.',
-            importConfirm: 'Import {count} sessions? Overwrites current data.',
+            lowRecovery: 'Rest Day Recommended',
+            restWarning: 'Your body needs recovery. Training in this state increases injury risk and reduces effectiveness.\n\nRecommendation: Take a 20-30 minute walk instead.\n\nAre you sure you want to train anyway?',
+            trainAnyway: 'Train Anyway',
+            importConfirm: 'Import {count} sessions? This will overwrite your current data.\n\nRecommendation: Export your current data first as backup.',
             invalidFile: 'Invalid File',
-            exportSuccess: 'Data exported successfully'
+            exportSuccess: 'Data exported successfully',
+            error: 'Error',
+            saveError: 'Error saving progress. Please try again.',
+            fatalError: 'Fatal Error',
+            initError: 'Failed to initialize app. Please refresh the page.',
+            recoverSession: 'Recover Session?',
+            recoverDraft: 'Found unsaved session from {time}. Restore it?',
+            updateAvailable: '✨ Update Available',
+            updateText: 'A new version of Flexx Files is ready. Reload to apply the latest improvements and fixes.',
+            reloadNow: 'Reload Now'
         },
 
         // Errors
