@@ -212,7 +212,11 @@ export const Sanitizer = {
     sanitizeURL(url) {
         // Optimization: Check cache first
         if (typeof url === 'string' && _urlCache.has(url)) {
-            return _urlCache.get(url);
+            const result = _urlCache.get(url);
+            // LRU: Move to end of cache by deleting and re-inserting
+            _urlCache.delete(url);
+            _urlCache.set(url, result);
+            return result;
         }
 
         try {
