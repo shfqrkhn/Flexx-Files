@@ -144,6 +144,17 @@ export const Storage = {
         try {
             const draft = localStorage.getItem(this.KEYS.DRAFT);
             const parsed = draft ? JSON.parse(draft) : null;
+
+            if (parsed) {
+                // SECURITY: Validate draft structure to prevent injection/corruption
+                const validation = SecurityValidator.validateSession(parsed);
+                if (!validation.valid) {
+                    Logger.warn('Invalid draft session detected and discarded', { errors: validation.errors });
+                    this.clearDraft();
+                    return null;
+                }
+            }
+
             this._draftCache = parsed; // Populate cache
             return parsed;
         } catch (e) {
