@@ -957,11 +957,6 @@ window.finish = async () => {
         Metrics.mark('session-save-start');
         const savedSession = Storage.saveSession(State.activeSession);
 
-        // CRITICAL: Flush persistence synchronously on workout completion
-        // saveSession() schedules async writes via requestIdleCallback, but we must
-        // ensure data is persisted immediately so users don't need recovery on next launch
-        Storage.flushPersistence();
-
         Logger.info('Session completed', {
             sessionId: savedSession.id,
             sessionNumber: savedSession.sessionNumber,

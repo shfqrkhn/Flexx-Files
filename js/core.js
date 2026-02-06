@@ -24,6 +24,7 @@ export const Storage = {
     // Draft Optimization: Debounce draft writes
     _draftCache: null,
     _pendingDraftWrite: null,
+    _shouldClearDraft: false,
 
     /**
      * ATOMIC TRANSACTION SYSTEM
@@ -341,8 +342,8 @@ export const Storage = {
             // Defer strict persistence to allow UI thread to unblock immediately
             this.schedulePersistence();
 
-            // Clear draft after successful save (optimistic)
-            this.clearDraft();
+            // Defer draft clearing until persistence is confirmed
+            this._shouldClearDraft = true;
 
             Logger.info('Session saved successfully (async scheduled)', { id: session.id, number: session.sessionNumber });
             return session;
@@ -493,6 +494,11 @@ export const Storage = {
         if (!this._sessionCache) return;
         try {
             localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(this._sessionCache));
+
+            if (this._shouldClearDraft) {
+                this.clearDraft();
+                this._shouldClearDraft = false;
+            }
 
             // Commit transaction if in progress
             if (this.Transaction.inProgress) {
