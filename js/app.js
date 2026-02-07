@@ -456,69 +456,70 @@ function renderDecompress(c) {
         </div>`;
 }
 
+function _generateSessionCard(x) {
+    let warmupHtml = I18n.t('history.noData');
+    if (x.warmup) {
+        warmupHtml = '';
+        for (let j = 0; j < x.warmup.length; j++) {
+            const w = x.warmup[j];
+            if (w.completed) {
+                warmupHtml += `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} `;
+            }
+        }
+    }
+
+    let exercisesHtml = '';
+    for (let j = 0; j < x.exercises.length; j++) {
+        const e = x.exercises[j];
+        const rawName = e.altName || e.name || EXERCISE_MAP.get(e.id)?.name || e.id;
+        const displayName = Sanitizer.sanitizeString(rawName);
+        exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
+    }
+
+    const decompressStatus = Array.isArray(x.decompress) ?
+        (x.decompress.every(d => d.completed) ? I18n.t('history.fullSession') : I18n.t('history.partial')) :
+        (x.decompress?.completed ? I18n.t('exercise.completed') : I18n.t('exercise.skip'));
+
+    return `
+<div class="card">
+    <div class="flex-row" style="justify-content:space-between">
+        <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
+        <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
+    </div>
+    <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
+        <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">${I18n.t('history.viewDetails')}</summary>
+        <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">${I18n.t('history.warmup')}</div>
+        <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
+        <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">${I18n.t('history.lifting')}</div>
+        ${exercisesHtml}
+        <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">${I18n.t('history.finisher')}</div>
+        <div class="text-xs">
+            ${I18n.t('workout.cardio')}: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
+            ${I18n.t('workout.decompress')}: ${decompressStatus}
+        </div>
+    </details>
+</div>`;
+}
+
 function renderHistory(c) {
     // Optimization: Iterating backwards avoids O(N) copy & reverse of entire history array
     const sessions = Storage.getSessions();
     const limit = State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT;
-    const s = [];
-    for (let i = sessions.length - 1; i >= 0 && s.length < limit; i--) {
-        s.push(sessions[i]);
-    }
 
     let historyHtml = '';
-    if (s.length === 0) {
+    if (sessions.length === 0) {
         historyHtml = `<div class="card"><p>${I18n.t('history.noLogs')}</p></div>`;
     } else {
-        for (let i = 0; i < s.length; i++) {
-            const x = s[i];
-
-            let warmupHtml = I18n.t('history.noData');
-            if (x.warmup) {
-                warmupHtml = '';
-                for (let j = 0; j < x.warmup.length; j++) {
-                    const w = x.warmup[j];
-                    if (w.completed) {
-                        warmupHtml += `✓ ${Sanitizer.sanitizeString(w.altUsed || w.id)} `;
-                    }
-                }
-            }
-
-            let exercisesHtml = '';
-            for (let j = 0; j < x.exercises.length; j++) {
-                const e = x.exercises[j];
-                const rawName = e.altName || e.name || EXERCISE_MAP.get(e.id)?.name || e.id;
-                const displayName = Sanitizer.sanitizeString(rawName);
-                exercisesHtml += `<div class="flex-row" style="justify-content:space-between; font-size:0.85rem; margin-bottom:0.25rem; ${e.skipped ? 'opacity:0.5; text-decoration:line-through' : ''}"><span>${displayName}</span><span>${e.weight} lbs</span></div>`;
-            }
-
-            const decompressStatus = Array.isArray(x.decompress) ?
-                (x.decompress.every(d => d.completed) ? I18n.t('history.fullSession') : I18n.t('history.partial')) :
-                (x.decompress?.completed ? I18n.t('exercise.completed') : I18n.t('exercise.skip'));
-
-            historyHtml += `
-        <div class="card">
-            <div class="flex-row" style="justify-content:space-between">
-                <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-                <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
-            </div>
-            <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
-                <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">${I18n.t('history.viewDetails')}</summary>
-                <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">${I18n.t('history.warmup')}</div>
-                <div class="text-xs" style="margin-bottom:1rem; line-height:1.4">${warmupHtml}</div>
-                <div class="text-xs" style="margin-bottom:0.5rem; color:var(--accent)">${I18n.t('history.lifting')}</div>
-                ${exercisesHtml}
-                <div class="text-xs" style="margin:1rem 0 0.5rem 0; color:var(--accent)">${I18n.t('history.finisher')}</div>
-                <div class="text-xs">
-                    ${I18n.t('workout.cardio')}: ${Sanitizer.sanitizeString(x.cardio?.type || 'N/A')}<br>
-                    ${I18n.t('workout.decompress')}: ${decompressStatus}
-                </div>
-            </details>
-        </div>`;
+        // Iterate backwards from end
+        let count = 0;
+        for (let i = sessions.length - 1; i >= 0 && count < limit; i--) {
+            historyHtml += _generateSessionCard(sessions[i]);
+            count++;
         }
     }
 
     c.innerHTML = `<div class="container"><h1>${I18n.t('history.title')}</h1>
-        ${historyHtml}
+        <div id="history-list">${historyHtml}</div>
         ${limit < sessions.length ? `<button id="load-more-btn" class="btn btn-secondary" style="width:100%; margin-top:1rem; padding:1rem">${I18n.t('history.loadMore', { remaining: sessions.length - limit })}</button>` : ''}
         </div>`;
 
@@ -526,7 +527,6 @@ function renderHistory(c) {
     if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', window.loadMoreHistory);
     }
-
 }
 
 function renderProgress(c) {
@@ -998,16 +998,53 @@ window.skipRest = () => {
 };
 window.startCardio = () => Timer.start(CONST.CARDIO_TIMER_SECONDS);
 window.loadMoreHistory = () => {
-    State.historyLimit = (State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT) + CONST.HISTORY_PAGINATION_LIMIT;
-    render();
+    try {
+        const currentLimit = State.historyLimit || CONST.HISTORY_PAGINATION_LIMIT;
+        const newLimit = currentLimit + CONST.HISTORY_PAGINATION_LIMIT;
+        const sessions = Storage.getSessions();
+        const historyList = document.getElementById('history-list');
 
-    // Palette: Restore focus to new 'Load More' button or last item to prevent context loss
-    const btn = document.getElementById('load-more-btn');
-    if (btn) {
-        btn.focus();
-    } else {
-        const summaries = document.querySelectorAll('summary');
-        if (summaries.length > 0) summaries[summaries.length - 1].focus();
+        if (!historyList) {
+            // Fallback if structure is missing
+            Logger.warn('History list container not found, falling back to full render');
+            State.historyLimit = newLimit;
+            render();
+            return;
+        }
+
+        // Optimization: Generate only new items
+        let newHtml = '';
+        const startIndex = sessions.length - 1 - currentLimit;
+
+        let count = 0;
+        for (let i = startIndex; i >= 0 && count < CONST.HISTORY_PAGINATION_LIMIT; i--) {
+            newHtml += _generateSessionCard(sessions[i]);
+            count++;
+        }
+
+        if (newHtml) {
+            historyList.insertAdjacentHTML('beforeend', newHtml);
+        }
+
+        State.historyLimit = newLimit;
+
+        // Update Load More Button
+        const btn = document.getElementById('load-more-btn');
+        if (btn) {
+            if (State.historyLimit >= sessions.length) {
+                btn.remove();
+                // Focus the last summary or something reasonable
+                const summaries = document.querySelectorAll('summary');
+                if (summaries.length > 0) summaries[summaries.length - 1].focus();
+            } else {
+                // Update text
+                btn.textContent = I18n.t('history.loadMore', { remaining: sessions.length - State.historyLimit });
+                btn.focus();
+            }
+        }
+    } catch (e) {
+        Logger.error('Error loading more history:', e);
+        render();
     }
 };
 window.viewProtocol = () => {
