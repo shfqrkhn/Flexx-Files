@@ -28,8 +28,13 @@ try {
     const swVersion = swMatch[1];
     console.log(`[SW]     Version: ${swVersion}`);
 
-    // 4. Assert
-    if (constVersion !== readmeVersion || constVersion !== swVersion) {
+    // 4. Get version from package.json
+    const pkg = JSON.parse(readFile('package.json'));
+    const pkgVersion = pkg.version;
+    console.log(`[PKG]    Version: ${pkgVersion}`);
+
+    // 5. Assert
+    if (constVersion !== readmeVersion || constVersion !== swVersion || constVersion !== pkgVersion) {
         console.error('FAIL: Version mismatch detected!');
         process.exit(1);
     }

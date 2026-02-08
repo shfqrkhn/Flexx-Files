@@ -3,3 +3,6 @@
 
 ## 2024-02-02 - [Bolt] - [Observability Standardization]
 **Protocol:** Use the `Logger` module for all system output. Direct `console` calls are forbidden in production code to ensure structured logging and persistence.
+
+## 2026-02-08 - [Sentinel] - [Error Persistence Integrity]
+**Protocol:** When serializing or logging `Error` objects, explicitly capture non-enumerable properties (`name`, `message`) before iteration. `for..in` loops are insufficient for native Errors.

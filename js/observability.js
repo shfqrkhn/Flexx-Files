@@ -146,9 +146,14 @@ const Logger = {
 
                     if (key === 'error' && value && typeof value === 'object') {
                         const safeError = {};
+                        // Sentinel: Explicitly capture and sanitize non-enumerable Error properties
+                        if (value.name) safeError.name = Sanitizer.sanitizeString(String(value.name));
+                        if (value.message) safeError.message = Sanitizer.sanitizeString(String(value.message));
+
                         for (const errKey in value) {
-                            if (errKey === 'stack') continue;
-                            safeError[errKey] = value[errKey];
+                            if (errKey === 'stack' || errKey === 'name' || errKey === 'message') continue;
+                            const errVal = value[errKey];
+                            safeError[errKey] = typeof errVal === 'string' ? Sanitizer.sanitizeString(errVal) : errVal;
                         }
                         safeContext[key] = safeError;
                     } else if (typeof value === 'string') {
