@@ -33,6 +33,20 @@ global.console = {
     error: console.error
 };
 
+// Mock Date for simulation
+const realDate = Date;
+let mockNow = realDate.now();
+
+global.Date = class extends realDate {
+    constructor(...args) {
+        if (args.length === 0) return new realDate(mockNow);
+        return new realDate(...args);
+    }
+    static now() {
+        return mockNow;
+    }
+};
+
 // Mock crypto for UUIDs
 Object.defineProperty(global, 'crypto', {
     value: {
@@ -72,9 +86,10 @@ function simulateReload() {
 async function runSimulation() {
     console.log(`Starting Comprehensive ${MONTHS_TO_SIMULATE}-month Simulation...`);
 
-    const startDate = new Date();
+    const startDate = new realDate();
     startDate.setFullYear(startDate.getFullYear() - 2);
     let currentDate = new Date(startDate);
+    mockNow = currentDate.getTime();
 
     let completedSessions = 0;
     let attemptedSessions = 0;
@@ -95,9 +110,12 @@ async function runSimulation() {
         if (Math.random() < 0.05) {
             // Skip 7 days
             currentDate = new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+            mockNow = currentDate.getTime();
             // console.log(`[${i}] Missed week due to life event.`);
             continue;
         }
+
+        mockNow = currentDate.getTime();
 
         // 2. Determine Recovery
         // 10% Red (Skip), 20% Yellow (Reduced), 70% Green
@@ -187,6 +205,7 @@ async function runSimulation() {
 
         // Advance time: 48h + random small variance
         currentDate = new Date(currentDate.getTime() + (48 + Math.random() * 4) * 60 * 60 * 1000);
+        mockNow = currentDate.getTime();
     }
 
     // Final Analysis

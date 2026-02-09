@@ -6,3 +6,6 @@
 
 ## 2026-02-08 - [Sentinel] - [Error Persistence Integrity]
 **Protocol:** When serializing or logging `Error` objects, explicitly capture non-enumerable properties (`name`, `message`) before iteration. `for..in` loops are insufficient for native Errors.
+
+## 2026-02-09 - [Palette] - [Transient State Resilience]
+**Protocol:** Progression logic MUST distinguish between permanent regression (injury, stall) and transient constraint (recovery, scheduling). Temporary constraints should not permanently degrade the baseline performance metric once the constraint is lifted.
