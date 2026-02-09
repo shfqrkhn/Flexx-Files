@@ -546,6 +546,7 @@ export const Calculator = {
             newLookup.set(key, {
                 last: val.last,
                 lastCompleted: val.lastCompleted,
+                lastNonDeload: val.lastNonDeload,
                 recent: [...val.recent] // Copy array to prevent shared mutation
             });
         }
@@ -553,12 +554,15 @@ export const Calculator = {
     },
 
     _applySession(lookup, session) {
+        const week = Math.ceil(session.sessionNumber / CONST.SESSIONS_PER_WEEK);
+        const isDeload = (week % CONST.DELOAD_WEEK_INTERVAL === 0);
+
         for (const ex of session.exercises) {
             if (ex.skipped) continue;
 
             const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
             if (!lookup.has(key)) {
-                lookup.set(key, { last: null, lastCompleted: null, recent: [] });
+                lookup.set(key, { last: null, lastCompleted: null, lastNonDeload: null, recent: [] });
             }
             const entry = lookup.get(key);
 
@@ -574,6 +578,11 @@ export const Calculator = {
             // Update lastCompleted
             if (ex.completed) {
                 entry.lastCompleted = ex;
+            }
+
+            // Update lastNonDeload
+            if (!isDeload) {
+                entry.lastNonDeload = ex;
             }
         }
     },
@@ -614,6 +623,11 @@ export const Calculator = {
                     entry.lastCompleted = this._scanBackwardsForCompleted(key, historySessions, historySessions.length - 2);
                 }
             }
+
+            // 4. Update 'lastNonDeload'
+            if (entry.lastNonDeload === ex) {
+                entry.lastNonDeload = this._scanBackwardsForNonDeload(key, historySessions, historySessions.length - 2);
+            }
         }
     },
 
@@ -646,6 +660,22 @@ export const Calculator = {
             if (ex && ex.completed) {
                 return ex;
             }
+        }
+        return null;
+    },
+
+    _scanBackwardsForNonDeload(key, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            const session = sessions[i];
+            const week = Math.ceil(session.sessionNumber / CONST.SESSIONS_PER_WEEK);
+            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue;
+
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex) return ex;
         }
         return null;
     },
@@ -782,7 +812,7 @@ export const Calculator = {
 
                 const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
                 if (!lookup.has(key)) {
-                    lookup.set(key, { last: null, lastCompleted: null, recent: [] });
+                    lookup.set(key, { last: null, lastCompleted: null, lastNonDeload: null, recent: [] });
                 }
                 const entry = lookup.get(key);
 
@@ -800,6 +830,13 @@ export const Calculator = {
                     entry.lastCompleted = ex;
                 }
 
+                if (!entry.lastNonDeload) {
+                    const week = Math.ceil(session.sessionNumber / CONST.SESSIONS_PER_WEEK);
+                    if (week % CONST.DELOAD_WEEK_INTERVAL !== 0) {
+                        entry.lastNonDeload = ex;
+                    }
+                }
+
                 // Check if this exercise is fully resolved (we have lastCompleted AND enough recent history)
                 // Note: We need lastCompleted to calculate progression.
                 // We need recent to detect stalls.
@@ -809,9 +846,10 @@ export const Calculator = {
                     // We are resolved if:
                     // 1. We have found a completed entry (so we know the last successful weight)
                     // 2. We have filled the recent buffer (so we can detect stalls)
+                    // 3. We have found the last non-deload entry
                     // Note: If the user has NEVER completed the exercise, we will scan full history.
                     // This is expected and necessary to find the last completion (which doesn't exist).
-                    if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS) {
+                    if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS && entry.lastNonDeload) {
                         fullyResolved.add(key);
                     }
                 }
@@ -914,18 +952,9 @@ export const Calculator = {
     },
 
     getLastNonDeloadExercise(exerciseId, sessions) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-            const s = sessions[i];
-            const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
-            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
-
-            const ex = s.exercises.find(e => {
-                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
-                return k === exerciseId && !e.skipped;
-            });
-            if (ex) return ex;
-        }
-        return null;
+        const cache = this._ensureCache(sessions, exerciseId);
+        const entry = cache.get(exerciseId);
+        return entry ? entry.lastNonDeload : null;
     },
 
     getPlateLoad(weight) {
