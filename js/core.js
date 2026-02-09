@@ -919,6 +919,11 @@ export const Calculator = {
             if (lastWeek % CONST.DELOAD_WEEK_INTERVAL === 0) {
                 const preDeloadEx = this.getLastNonDeloadExercise(exerciseId, sessions);
                 if (preDeloadEx) {
+                    // Check if pre-deload session was a transient dip (Yellow)
+                    const lastGreen = this.getLastGreenExercise(exerciseId, sessions);
+                    if (lastGreen && preDeloadEx.completed && preDeloadEx.weight < lastGreen.weight) {
+                        return lastGreen.weight;
+                    }
                     return preDeloadEx.completed ? preDeloadEx.weight + CONST.WEIGHT_INCREMENT_LBS : preDeloadEx.weight;
                 }
             }
@@ -955,6 +960,23 @@ export const Calculator = {
         const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
         return entry ? entry.lastNonDeload : null;
+    },
+
+    getLastGreenExercise(exerciseId, sessions) {
+        for (let i = sessions.length - 1; i >= 0; i--) {
+            const s = sessions[i];
+            if (s.recoveryStatus !== 'green') continue;
+
+            const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
+            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
+
+            const ex = s.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === exerciseId && !e.skipped;
+            });
+            if (ex) return ex;
+        }
+        return null;
     },
 
     getPlateLoad(weight) {
