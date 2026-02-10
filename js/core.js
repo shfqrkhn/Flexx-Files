@@ -929,6 +929,21 @@ export const Calculator = {
             }
         }
 
+        // Transient State Resilience:
+        // If the last session was a constrained recovery day (Yellow/Red) and resulted in a
+        // weight lower than our Green baseline, we should restore the Green baseline.
+        // This prevents temporary constraints from permanently degrading progress.
+        const lastRecovery = this.getLastRecoveryStatus(exerciseId, sessions);
+        if (lastRecovery && lastRecovery !== 'green' && last.completed) {
+            const lastGreen = this.getLastGreenExercise(exerciseId, sessions);
+            // If we have a green baseline that is higher than what we just did
+            if (lastGreen && lastGreen.weight > last.weight) {
+                // Resume progression from the Green baseline
+                // (Assuming we would have progressed if not constrained)
+                return lastGreen.completed ? lastGreen.weight + CONST.WEIGHT_INCREMENT_LBS : lastGreen.weight;
+            }
+        }
+
         return last.completed ? last.weight + CONST.WEIGHT_INCREMENT_LBS : last.weight;
     },
 
@@ -975,6 +990,22 @@ export const Calculator = {
                 return k === exerciseId && !e.skipped;
             });
             if (ex) return ex;
+        }
+        return null;
+    },
+
+    getLastRecoveryStatus(exerciseId, sessions) {
+        const cache = this._ensureCache(sessions, exerciseId);
+        const entry = cache.get(exerciseId);
+        if (!entry || !entry.last) return null;
+
+        // Find the session containing the last exercise object
+        // Optimization: iterate backwards as it's likely recent
+        for (let i = sessions.length - 1; i >= 0; i--) {
+            const s = sessions[i];
+            if (s.exercises.includes(entry.last)) {
+                return s.recoveryStatus;
+            }
         }
         return null;
     },
