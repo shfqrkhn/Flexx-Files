@@ -263,6 +263,12 @@ export const I18n = {
             return key;
         }
 
+        // Optimization: Skip interpolation if no params
+        // This avoids regex overhead on static strings (O(1))
+        if (!params || Object.keys(params).length === 0) {
+            return value || key;
+        }
+
         // Interpolate parameters
         return this._interpolate(value || key, params);
     },
@@ -290,6 +296,12 @@ export const I18n = {
      * Example: "Hello {name}" with {name: "World"} -> "Hello World"
      */
     _interpolate(str, params) {
+        // Sentinel: Ensure str is a string to prevent runtime errors
+        if (typeof str !== 'string') {
+            Logger.warn('Interpolation target is not a string', { type: typeof str });
+            return String(str);
+        }
+
         return str.replace(/\{(\w+)\}/g, (match, key) => {
             return params.hasOwnProperty(key) ? params[key] : match;
         });

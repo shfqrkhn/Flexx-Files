@@ -9,3 +9,6 @@
 
 ## 2026-02-09 - [Palette] - [Transient State Resilience]
 **Protocol:** Progression logic MUST distinguish between permanent regression (injury, stall) and transient constraint (recovery, scheduling). Temporary constraints should not permanently degrade the baseline performance metric once the constraint is lifted.
+
+## 2026-02-09 - [Bolt] - [Interpolation Efficiency]
+**Protocol:** Interpolation logic MUST bypass complex operations (Regex) for static inputs (empty params) to maintain O(1) performance in render loops.
