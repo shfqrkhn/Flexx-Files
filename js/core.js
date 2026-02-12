@@ -1019,11 +1019,14 @@ export const Calculator = {
             result = 'Use DBs / Fixed Bar';
         } else {
             const target = (weight - CONST.OLYMPIC_BAR_WEIGHT_LBS) / 2; // Each side gets half
-            if (target <= 0) {
+            // Epsilon for floating point comparison (0.005 lbs precision is sufficient for 1.25 lbs plates)
+            const EPSILON = 0.005;
+
+            if (target <= EPSILON) {
                 result = 'Empty Bar';
             } else {
                 this._loadBuffer.length = 0;
-                let rem = target;
+                let rem = target + EPSILON; // Add epsilon to ensure we catch plates slightly below threshold due to FP error
                 const plates = CONST.AVAILABLE_PLATES;
                 const plateStrs = this._plateStrings;
                 const len = plates.length;
