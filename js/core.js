@@ -1011,7 +1011,13 @@ export const Calculator = {
     },
 
     getPlateLoad(weight) {
-        if (this._plateCache.has(weight)) return this._plateCache.get(weight);
+        if (this._plateCache.has(weight)) {
+            const result = this._plateCache.get(weight);
+            // LRU: Move to end of cache by deleting and re-inserting
+            this._plateCache.delete(weight);
+            this._plateCache.set(weight, result);
+            return result;
+        }
 
         // Calculate plates needed for each side of barbell
         let result;
@@ -1046,7 +1052,7 @@ export const Calculator = {
 
         // Optimization: Memoize result
         // Limit cache size to prevent memory leaks (e.g. 300 entries)
-        if (this._plateCache.size > 300) {
+        if (this._plateCache.size > CONST.PLATE_CACHE_LIMIT) {
             const firstKey = this._plateCache.keys().next().value;
             this._plateCache.delete(firstKey);
         }
