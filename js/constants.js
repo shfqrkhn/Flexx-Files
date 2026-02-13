@@ -21,12 +21,13 @@ export const YELLOW_RECOVERY_MULTIPLIER = 0.9; // 90% weight on yellow recovery
 // === BARBELL CALCULATIONS ===
 export const OLYMPIC_BAR_WEIGHT_LBS = 45; // Standard Olympic barbell weight
 export const AVAILABLE_PLATES = [45, 35, 25, 10, 5, 2.5, 1.25]; // Available plate weights
+export const PLATE_CACHE_LIMIT = 300; // Max number of weight calculations to cache
 
 // === AUTO-EXPORT ===
 export const AUTO_EXPORT_INTERVAL = 5; // Auto-export every N sessions
 
 // === DATA VERSIONING ===
-export const APP_VERSION = '3.9.49';
+export const APP_VERSION = '3.9.50';
 export const STORAGE_VERSION = 'v3';
 export const STORAGE_PREFIX = 'flexx_';
 
