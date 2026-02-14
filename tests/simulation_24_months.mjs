@@ -7,10 +7,11 @@ import { EXERCISES, WARMUP, CARDIO_OPTIONS, DECOMPRESSION } from '../js/config.j
 const store = {};
 global.localStorage = {
     getItem: (k) => store[k] || null,
-    setItem: (k, v) => { store[k] = v; },
+    setItem: (k, v) => { store[k] = String(v); },
     removeItem: (k) => { delete store[k]; },
-    length: 0,
-    key: (i) => Object.keys(store)[i]
+    clear: () => { for (const k in store) delete store[k]; },
+    get length() { return Object.keys(store).length; },
+    key: (i) => Object.keys(store)[i] || null
 };
 
 global.setTimeout = (cb) => { cb(); return 1; };
