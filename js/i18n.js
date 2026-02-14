@@ -104,10 +104,12 @@ const translations = {
             restoreData: 'Restore Data',
             factoryReset: 'Factory Reset',
             exportLogs: 'Export Diagnostic Logs',
+            storage: 'Storage',
             privacy: 'Privacy & Data',
             privacyDesc: 'Your data never leaves this device',
             compliance: 'Compliance',
-            complianceDesc: 'WCAG 2.1 AA compliant'
+            complianceDesc: 'WCAG 2.1 AA compliant',
+            storageUsage: 'Storage: {percent}% used ({used} / {total})'
         },
 
         // Protocol
@@ -157,7 +159,9 @@ const translations = {
             importMissing: 'Invalid file: some sessions are missing required fields',
             importParse: 'Invalid file: Please ensure this is a valid Flexx Files backup file.',
             exportFailed: 'Failed to export data. Please try again.',
-            loadFailed: 'Failed to load sessions data'
+            loadFailed: 'Failed to load sessions data',
+            storageFull: 'Storage limit reached. Please export and delete old sessions to continue.',
+            storageWarning: 'Storage is {percent}% full. Consider exporting data soon.'
         },
 
         // Accessibility

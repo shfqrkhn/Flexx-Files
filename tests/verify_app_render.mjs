@@ -75,10 +75,11 @@ Object.defineProperty(global, 'navigator', {
 global.localStorage = {
     store: {},
     getItem(k) { return this.store[k] || null; },
-    setItem(k, v) { this.store[k] = v; },
+    setItem(k, v) { this.store[k] = String(v); },
     removeItem(k) { delete this.store[k]; },
-    length: 0,
-    key: (i) => Object.keys(this.store)[i]
+    clear() { this.store = {}; },
+    get length() { return Object.keys(this.store).length; },
+    key(i) { return Object.keys(this.store)[i] || null; }
 };
 global.location = window.location;
 global.performance = {

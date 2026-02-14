@@ -284,6 +284,14 @@ export const Storage = {
         }
 
         try {
+            // QUOTA GUARD: Check storage usage before saving
+            // Prevent data loss by blocking saves when near capacity (Bolt Mode)
+            const usage = this.getUsage();
+            if (usage.percent > 96) { // Leave ~200KB buffer
+                Logger.warn('Storage quota exceeded', { usage: usage.percent });
+                throw new Error('STORAGE_FULL');
+            }
+
             // SECURITY: Validate session structure before saving
             const validation = SecurityValidator.validateSession(session);
             if (!validation.valid) {
@@ -526,6 +534,36 @@ export const Storage = {
 
         this._sessionCache = null;
         window.location.reload();
+    },
+
+    /**
+     * Calculate storage usage
+     * @returns {object} { bytes, percent, limit }
+     */
+    getUsage() {
+        let total = 0;
+        const prefix = CONST.STORAGE_PREFIX || 'flexx_';
+        try {
+            // Iterate using key() to support mocks and standard localStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(prefix)) {
+                    const value = localStorage.getItem(key);
+                    if (value) {
+                        total += (key.length + value.length) * 2; // UTF-16 approximation (2 bytes per char)
+                    }
+                }
+            }
+        } catch (e) {
+            Logger.warn('Storage usage calculation failed', { error: e.message });
+        }
+
+        const limit = 5 * 1024 * 1024; // 5MB typical limit
+        return {
+            bytes: total,
+            percent: Math.min(100, (total / limit) * 100),
+            limit
+        };
     },
 
 };

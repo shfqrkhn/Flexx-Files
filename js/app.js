@@ -557,6 +557,32 @@ function renderSettings(c) {
             </div>
         </div>`;
 
+    const usage = Storage.getUsage();
+    const storageHtml = `
+        <div class="card">
+            <h3>${I18n.t('settings.storage')}</h3>
+            <p class="text-xs" style="margin-bottom:0.5rem">${I18n.t('settings.storageUsage', {
+                percent: usage.percent.toFixed(1),
+                used: (usage.bytes / 1024).toFixed(0) + 'KB',
+                total: (usage.limit / 1024 / 1024).toFixed(0) + 'MB'
+            })}</p>
+            <div style="width:100%; height:8px; background:var(--bg-secondary); border-radius:4px; overflow:hidden">
+                <div style="width:${usage.percent}%; height:100%; background:${usage.percent > 90 ? 'var(--error)' : 'var(--accent)'}"></div>
+            </div>
+        </div>`;
+
+    // Insert storage card before backup card
+    const container = c.querySelector('.container');
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = storageHtml;
+    // Find the backup card (2nd card)
+    const cards = container.querySelectorAll('.card');
+    if (cards.length > 1) {
+        container.insertBefore(tempDiv.firstElementChild, cards[1]);
+    } else {
+        container.appendChild(tempDiv.firstElementChild);
+    }
+
     const backupBtn = c.querySelector('#backup-btn');
     if (backupBtn) {
         backupBtn.addEventListener('click', () => {
@@ -987,6 +1013,13 @@ window.finish = async () => {
             error: e.message
         });
         Logger.error('Error finishing session:', e);
+
+        if (e.message === 'STORAGE_FULL') {
+            ScreenReader.announce(I18n.t('errors.storageFull'), 'assertive');
+            await Modal.show({ title: I18n.t('modal.error'), text: I18n.t('errors.storageFull') });
+            return;
+        }
+
         ScreenReader.announce(I18n.t('errors.saveFailed'), 'assertive');
         await Modal.show({ title: I18n.t('modal.error'), text: I18n.t('errors.saveFailed') });
     }
