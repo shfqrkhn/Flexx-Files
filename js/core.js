@@ -583,6 +583,7 @@ export const Calculator = {
         for (const [key, val] of lookup) {
             newLookup.set(key, {
                 last: val.last,
+                lastSession: val.lastSession,
                 lastCompleted: val.lastCompleted,
                 lastNonDeload: val.lastNonDeload,
                 recent: [...val.recent] // Copy array to prevent shared mutation
@@ -600,7 +601,7 @@ export const Calculator = {
 
             const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
             if (!lookup.has(key)) {
-                lookup.set(key, { last: null, lastCompleted: null, lastNonDeload: null, recent: [] });
+                lookup.set(key, { last: null, lastSession: null, lastCompleted: null, lastNonDeload: null, recent: [] });
             }
             const entry = lookup.get(key);
 
@@ -612,6 +613,7 @@ export const Calculator = {
 
             // Update last (this is the newest)
             entry.last = ex;
+            entry.lastSession = session;
 
             // Update lastCompleted
             if (ex.completed) {
@@ -651,6 +653,7 @@ export const Calculator = {
 
             // 2. Update 'last'
             entry.last = entry.recent.length > 0 ? entry.recent[0] : null;
+            entry.lastSession = null; // Invalidate cache to force fallback
 
             // 3. Update 'lastCompleted'
             if (entry.lastCompleted === ex) {
@@ -828,7 +831,7 @@ export const Calculator = {
         // If the user has history for exercises no longer in EXERCISES, or if they haven't performed
         // one of the current exercises, we will scan the full history (falling back to O(N)).
         // This is acceptable as the app UI is driven by EXERCISES.
-        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastCompleted: SessionExercise, recent: SessionExercise[] }>
+        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastSession: Session, lastCompleted: SessionExercise, recent: SessionExercise[] }>
 
         // Optimization: Use pre-calculated Set
         const requiredIds = EXERCISE_IDS;
@@ -850,7 +853,7 @@ export const Calculator = {
 
                 const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
                 if (!lookup.has(key)) {
-                    lookup.set(key, { last: null, lastCompleted: null, lastNonDeload: null, recent: [] });
+                    lookup.set(key, { last: null, lastSession: null, lastCompleted: null, lastNonDeload: null, recent: [] });
                 }
                 const entry = lookup.get(key);
 
@@ -862,6 +865,7 @@ export const Calculator = {
                 // Since iterating backwards, the first valid entry found is the latest
                 if (!entry.last) {
                     entry.last = ex;
+                    entry.lastSession = session;
                 }
 
                 if (ex.completed && !entry.lastCompleted) {
@@ -1035,6 +1039,13 @@ export const Calculator = {
     getLastRecoveryStatus(exerciseId, sessions) {
         const cache = this._ensureCache(sessions, exerciseId);
         const entry = cache.get(exerciseId);
+
+        // Optimized Path: O(1)
+        if (entry && entry.lastSession) {
+            return entry.lastSession.recoveryStatus;
+        }
+
+        // Fallback Path: O(N)
         if (!entry || !entry.last) return null;
 
         // Find the session containing the last exercise object
@@ -1042,6 +1053,8 @@ export const Calculator = {
         for (let i = sessions.length - 1; i >= 0; i--) {
             const s = sessions[i];
             if (s.exercises.includes(entry.last)) {
+                // Self-healing cache: Update lastSession if found
+                entry.lastSession = s;
                 return s.recoveryStatus;
             }
         }

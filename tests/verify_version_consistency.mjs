@@ -21,6 +21,23 @@ try {
     const readmeVersion = readmeMatch[1];
     console.log(`[README] Version: ${readmeVersion}`);
 
+    // Check Setup Script Version in README
+    const setupMatch = readme.match(/Flexx Files v([\d\.]+) Structure Created/);
+    if (!setupMatch) throw new Error('Could not find Setup Script Version in README.md');
+    const setupVersion = setupMatch[1];
+    if (setupVersion !== readmeVersion) {
+        throw new Error(`README Setup Script Version (${setupVersion}) does not match Header Version (${readmeVersion})`);
+    }
+
+    // Check Protocol MD
+    const protocol = readFile('Complete_Strength_Protocol.md');
+    const protocolMatch = protocol.match(/App Version:\*\* ([\d\.]+)/);
+    if (!protocolMatch) throw new Error('Could not find App Version in Complete_Strength_Protocol.md');
+    const protocolVersion = protocolMatch[1];
+    if (protocolVersion !== readmeVersion) {
+        throw new Error(`Protocol MD Version (${protocolVersion}) does not match README Version (${readmeVersion})`);
+    }
+
     // 3. Get version from sw.js
     const sw = readFile('sw.js');
     const swMatch = sw.match(/CACHE_NAME = 'flexx-v([\d\.]+)';/);
