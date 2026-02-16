@@ -586,6 +586,7 @@ export const Calculator = {
                 lastSession: val.lastSession,
                 lastCompleted: val.lastCompleted,
                 lastNonDeload: val.lastNonDeload,
+                lastGreen: val.lastGreen,
                 recent: [...val.recent] // Copy array to prevent shared mutation
             });
         }
@@ -601,7 +602,7 @@ export const Calculator = {
 
             const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
             if (!lookup.has(key)) {
-                lookup.set(key, { last: null, lastSession: null, lastCompleted: null, lastNonDeload: null, recent: [] });
+                lookup.set(key, { last: null, lastSession: null, lastCompleted: null, lastNonDeload: null, lastGreen: null, recent: [] });
             }
             const entry = lookup.get(key);
 
@@ -623,6 +624,11 @@ export const Calculator = {
             // Update lastNonDeload
             if (!isDeload) {
                 entry.lastNonDeload = ex;
+            }
+
+            // Update lastGreen
+            if (session.recoveryStatus === 'green' && !isDeload) {
+                entry.lastGreen = ex;
             }
         }
     },
@@ -669,7 +675,30 @@ export const Calculator = {
             if (entry.lastNonDeload === ex) {
                 entry.lastNonDeload = this._scanBackwardsForNonDeload(key, historySessions, historySessions.length - 2);
             }
+
+            // 5. Update 'lastGreen'
+            if (entry.lastGreen === ex) {
+                entry.lastGreen = this._scanBackwardsForGreen(key, historySessions, historySessions.length - 2);
+            }
         }
+    },
+
+    _scanBackwardsForGreen(key, sessions, startIndex) {
+        for (let i = startIndex; i >= 0; i--) {
+            const session = sessions[i];
+            if (session.recoveryStatus !== 'green') continue;
+
+            const week = Math.ceil(session.sessionNumber / CONST.SESSIONS_PER_WEEK);
+            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue;
+
+            const ex = session.exercises.find(e => {
+                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
+                return k === key && !e.skipped;
+            });
+
+            if (ex) return ex;
+        }
+        return null;
     },
 
     _scanBackwardsForRecent(entry, key, sessions, startIndex) {
@@ -831,7 +860,7 @@ export const Calculator = {
         // If the user has history for exercises no longer in EXERCISES, or if they haven't performed
         // one of the current exercises, we will scan the full history (falling back to O(N)).
         // This is acceptable as the app UI is driven by EXERCISES.
-        const lookup = new Map(); // Map<exerciseId, { last: SessionExercise, lastSession: Session, lastCompleted: SessionExercise, recent: SessionExercise[] }>
+        const lookup = new Map(); // Map<exerciseId, { last, lastSession, lastCompleted, lastNonDeload, lastGreen, recent }>
 
         // Optimization: Use pre-calculated Set
         const requiredIds = EXERCISE_IDS;
@@ -853,7 +882,7 @@ export const Calculator = {
 
                 const key = (ex.usingAlternative && ex.altName) ? ex.altName : ex.id;
                 if (!lookup.has(key)) {
-                    lookup.set(key, { last: null, lastSession: null, lastCompleted: null, lastNonDeload: null, recent: [] });
+                    lookup.set(key, { last: null, lastSession: null, lastCompleted: null, lastNonDeload: null, lastGreen: null, recent: [] });
                 }
                 const entry = lookup.get(key);
 
@@ -879,6 +908,14 @@ export const Calculator = {
                     }
                 }
 
+                // Update lastGreen (first one encountered is the latest)
+                if (!entry.lastGreen && session.recoveryStatus === 'green') {
+                    const week = Math.ceil(session.sessionNumber / CONST.SESSIONS_PER_WEEK);
+                    if (week % CONST.DELOAD_WEEK_INTERVAL !== 0) {
+                        entry.lastGreen = ex;
+                    }
+                }
+
                 // Check if this exercise is fully resolved (we have lastCompleted AND enough recent history)
                 // Note: We need lastCompleted to calculate progression.
                 // We need recent to detect stalls.
@@ -889,9 +926,10 @@ export const Calculator = {
                     // 1. We have found a completed entry (so we know the last successful weight)
                     // 2. We have filled the recent buffer (so we can detect stalls)
                     // 3. We have found the last non-deload entry
+                    // 4. We have found the last green entry
                     // Note: If the user has NEVER completed the exercise, we will scan full history.
                     // This is expected and necessary to find the last completion (which doesn't exist).
-                    if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS && entry.lastNonDeload) {
+                    if (entry.lastCompleted && entry.recent.length >= CONST.STALL_DETECTION_SESSIONS && entry.lastNonDeload && entry.lastGreen) {
                         fullyResolved.add(key);
                     }
                 }
@@ -1020,20 +1058,9 @@ export const Calculator = {
     },
 
     getLastGreenExercise(exerciseId, sessions) {
-        for (let i = sessions.length - 1; i >= 0; i--) {
-            const s = sessions[i];
-            if (s.recoveryStatus !== 'green') continue;
-
-            const week = Math.ceil(s.sessionNumber / CONST.SESSIONS_PER_WEEK);
-            if (week % CONST.DELOAD_WEEK_INTERVAL === 0) continue; // Skip deload weeks
-
-            const ex = s.exercises.find(e => {
-                const k = (e.usingAlternative && e.altName) ? e.altName : e.id;
-                return k === exerciseId && !e.skipped;
-            });
-            if (ex) return ex;
-        }
-        return null;
+        const cache = this._ensureCache(sessions, exerciseId);
+        const entry = cache.get(exerciseId);
+        return entry ? entry.lastGreen : null;
     },
 
     getLastRecoveryStatus(exerciseId, sessions) {
