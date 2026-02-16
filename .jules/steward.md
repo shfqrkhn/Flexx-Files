@@ -12,3 +12,6 @@
 
 ## 2026-02-09 - [Bolt] - [Interpolation Efficiency]
 **Protocol:** Interpolation logic MUST bypass complex operations (Regex) for static inputs (empty params) to maintain O(1) performance in render loops.
+
+## 2026-02-15 - [Bolt] - [Cached History Lookups]
+**Protocol:** All history lookup functions in `Calculator` MUST be O(1) via the `_ensureCache` mechanism. Linear scans (O(N)) are forbidden for core rendering loops.
