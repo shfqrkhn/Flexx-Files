@@ -50,8 +50,15 @@ try {
     const pkgVersion = pkg.version;
     console.log(`[PKG]    Version: ${pkgVersion}`);
 
-    // 5. Assert
-    if (constVersion !== readmeVersion || constVersion !== swVersion || constVersion !== pkgVersion) {
+    // 5. Get version from CLAUDE.md
+    const claude = readFile('CLAUDE.md');
+    const claudeMatch = claude.match(/- \*\*Version\*\*: ([\d\.]+)/);
+    if (!claudeMatch) throw new Error('Could not find Version in CLAUDE.md');
+    const claudeVersion = claudeMatch[1];
+    console.log(`[CLAUDE] Version: ${claudeVersion}`);
+
+    // 6. Assert
+    if (constVersion !== readmeVersion || constVersion !== swVersion || constVersion !== pkgVersion || constVersion !== claudeVersion) {
         console.error('FAIL: Version mismatch detected!');
         process.exit(1);
     }
