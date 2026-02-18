@@ -1390,7 +1390,7 @@ if (mainContent) {
     // 7. Register service worker for offline capability with update detection
     if ('serviceWorker' in navigator) {
         try {
-            const registration = await navigator.serviceWorker.register('/sw.js');
+            const registration = await navigator.serviceWorker.register('./sw.js');
             Logger.info('Service worker registered');
 
             // Listen for updates
