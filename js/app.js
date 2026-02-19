@@ -92,6 +92,8 @@ function preSanitizeConfig() {
 const State = { view: 'today', phase: null, recovery: null, activeSession: null, historyLimit: CONST.HISTORY_PAGINATION_LIMIT };
 let _navCache = null;
 let _lastNavView = null;
+// Optimization: Cache generated session cards to avoid repeated string generation/sanitization
+const _sessionCardCache = new WeakMap();
 const Haptics = {
     success: () => navigator.vibrate?.([10, 30, 10]),
     light: () => navigator.vibrate?.(10),
@@ -457,6 +459,11 @@ function renderDecompress(c) {
 }
 
 function _generateSessionCard(x) {
+    // Optimization: Return cached HTML if available for this session object
+    if (_sessionCardCache.has(x)) {
+        return _sessionCardCache.get(x);
+    }
+
     let warmupHtml = I18n.t('history.noData');
     if (x.warmup) {
         warmupHtml = '';
@@ -480,7 +487,7 @@ function _generateSessionCard(x) {
         (x.decompress.every(d => d.completed) ? I18n.t('history.fullSession') : I18n.t('history.partial')) :
         (x.decompress?.completed ? I18n.t('exercise.completed') : I18n.t('exercise.skip'));
 
-    return `
+    const html = `
 <div class="card">
     <div class="flex-row" style="justify-content:space-between">
         <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
@@ -499,6 +506,9 @@ function _generateSessionCard(x) {
         </div>
     </details>
 </div>`;
+
+    _sessionCardCache.set(x, html);
+    return html;
 }
 
 function renderHistory(c) {

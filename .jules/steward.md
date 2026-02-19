@@ -15,3 +15,6 @@
 
 ## 2026-02-15 - [Bolt] - [Cached History Lookups]
 **Protocol:** All history lookup functions in `Calculator` MUST be O(1) via the `_ensureCache` mechanism. Linear scans (O(N)) are forbidden for core rendering loops.
+
+## 2026-02-18 - [Bolt] - [Render Caching]
+**Protocol:** Expensive render functions (string generation/sanitization) MUST be memoized (e.g. `WeakMap`) if they are called repeatedly on immutable data structures.
