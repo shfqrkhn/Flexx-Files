@@ -18,3 +18,6 @@
 
 ## 2026-02-18 - [Bolt] - [Render Caching]
 **Protocol:** Expensive render functions (string generation/sanitization) MUST be memoized (e.g. `WeakMap`) if they are called repeatedly on immutable data structures.
+
+## 2026-02-23 - [Bolt] - [Storage Optimization]
+**Protocol:** Cache large storage values (e.g. sessions JSON length) in memory to avoid repeated deserialization/allocation during quota checks.
