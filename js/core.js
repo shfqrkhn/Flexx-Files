@@ -17,6 +17,7 @@ export const Storage = {
 
     // Performance Optimization: Cache parsed sessions to avoid repeated JSON.parse()
     _sessionCache: null,
+    _cachedSessionsSize: null, // Optimization: Avoid repeated getItem() for large JSON
     _pendingWrite: null,
     _pendingWriteType: null, // 'timeout' or 'idle'
     _isCorrupted: false,
@@ -251,7 +252,13 @@ export const Storage = {
         if (this._sessionCache) return this._sessionCache;
         try {
             const data = localStorage.getItem(this.KEYS.SESSIONS);
-            if (!data) return [];
+            if (!data) {
+                this._cachedSessionsSize = 0;
+                return [];
+            }
+            // Optimization: Cache size to avoid reading large string again in getUsage()
+            this._cachedSessionsSize = data.length;
+
             const sessions = JSON.parse(data);
             // Validate it's an array
             this._sessionCache = Array.isArray(sessions) ? sessions : [];
@@ -501,7 +508,10 @@ export const Storage = {
 
         if (!this._sessionCache) return;
         try {
-            localStorage.setItem(this.KEYS.SESSIONS, JSON.stringify(this._sessionCache));
+            const json = JSON.stringify(this._sessionCache);
+            localStorage.setItem(this.KEYS.SESSIONS, json);
+            // Optimization: Update cached size immediately after write
+            this._cachedSessionsSize = json.length;
 
             if (this._shouldClearDraft) {
                 this.clearDraft();
@@ -548,6 +558,12 @@ export const Storage = {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (key && key.startsWith(prefix)) {
+                    // Optimization: Use cached size for large sessions key to avoid allocation
+                    if (key === this.KEYS.SESSIONS && this._cachedSessionsSize !== null) {
+                        total += (key.length + this._cachedSessionsSize) * 2;
+                        continue;
+                    }
+
                     const value = localStorage.getItem(key);
                     if (value) {
                         total += (key.length + value.length) * 2; // UTF-16 approximation (2 bytes per char)
