@@ -1,10 +1,11 @@
-const CACHE_NAME = 'flexx-v3.9.57';
+const CACHE_NAME = 'flexx-v3.9.58';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
     './js/accessibility.js', './js/constants.js', './js/i18n.js',
     './js/observability.js', './js/security.js',
-    './manifest.json'
+    './manifest.json',
+    './assets/icon-192.png', './assets/icon-512.png'
 ];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))));
