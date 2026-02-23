@@ -513,5 +513,5 @@ Notes: _________________________________________________
 ---
 
 **Protocol Version:** 3.2
-**App Version:** 3.9.58
+**App Version:** 3.9.59
 **Last Updated:** February 2026
