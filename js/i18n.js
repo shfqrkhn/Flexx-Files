@@ -5,6 +5,7 @@
  */
 
 import { Logger } from './observability.js';
+import { Sanitizer } from './security.js';
 
 // === TRANSLATIONS ===
 const translations = {
@@ -307,7 +308,8 @@ export const I18n = {
         }
 
         return str.replace(/\{(\w+)\}/g, (match, key) => {
-            return params.hasOwnProperty(key) ? params[key] : match;
+            // SECURITY: Sanitize all interpolated values to prevent XSS
+            return params.hasOwnProperty(key) ? Sanitizer.sanitizeString(String(params[key])) : match;
         });
     },
 
