@@ -1189,18 +1189,5 @@ export const Validator = {
         }
 
         return { valid: true };
-    },
-
-    formatDate(d) {
-        try {
-            return new Date(d).toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric'
-            });
-        } catch (e) {
-            Logger.error('Date formatting error:', { error: e.message });
-            return 'Invalid Date';
-        }
     }
 };
