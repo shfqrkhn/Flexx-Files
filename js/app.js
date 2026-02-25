@@ -210,7 +210,7 @@ function renderToday(c) {
 function renderRecovery(c) {
     const check = Validator.canStartWorkout();
     if (!check.valid && !State.forceRestSkip) {
-        const nextDate = check.nextAvailable ? Validator.formatDate(check.nextAvailable) : '';
+        const nextDate = check.nextAvailable ? DateFormatter.format(check.nextAvailable) : '';
         c.innerHTML = `
             <div class="container">
                 <h1>⏸️ ${I18n.t('recovery.restRequired')}</h1>
@@ -490,8 +490,8 @@ function _generateSessionCard(x) {
     const html = `
 <div class="card">
     <div class="flex-row" style="justify-content:space-between">
-        <div><h3>${Validator.formatDate(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
-        <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${Validator.formatDate(x.date)}">✕</button>
+        <div><h3>${DateFormatter.format(x.date)}</h3><span class="text-xs" style="border:1px solid var(--border); padding:0.125rem 0.375rem; border-radius:var(--radius-sm)">${Sanitizer.sanitizeString(x.recoveryStatus).toUpperCase()}</span></div>
+        <button class="btn btn-secondary btn-delete-session" style="width:44px; height:44px; padding:0; display:flex; align-items:center; justify-content:center; flex-shrink:0" data-session-id="${x.id}" aria-label="Delete session from ${DateFormatter.format(x.date)}">✕</button>
     </div>
     <details style="margin-top:1rem; border-top:1px solid var(--border); padding-top:0.5rem;">
         <summary class="text-xs" style="cursor:pointer; padding:0.5rem 0; opacity:0.8">${I18n.t('history.viewDetails')}</summary>
@@ -1314,7 +1314,7 @@ window.drawChart = (id) => {
         div.innerHTML = `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weight progression chart for ${EXERCISE_MAP.get(id)?.name || 'exercise'}">
             <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="3"/>
             ${data.map((p,i)=>`<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--bg-secondary)" stroke="var(--accent)" stroke-width="2"/>`).join('')}
-        </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${Validator.formatDate(data[0].d)}</span><span>${Validator.formatDate(data[data.length-1].d)}</span></div>`;
+        </svg><div class="flex-row" style="justify-content:space-between; margin-top:0.25rem; font-size:var(--font-xs); color:var(--text-secondary)"><span>${DateFormatter.format(data[0].d)}</span><span>${DateFormatter.format(data[data.length-1].d)}</span></div>`;
     } catch (e) {
         Logger.error('Error drawing chart:', e);
         const div = document.getElementById('chart-area');
