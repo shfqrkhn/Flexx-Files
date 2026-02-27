@@ -99,6 +99,7 @@ body.reduce-motion *::after {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* Allow text selection for accessibility - only disable on interactive elements */
+/* Sentinel: Law of Universality - Prevent double-tap zoom on all interactive elements */
 button, .nav-item, .stepper-btn, .set-btn, .timer-dock, summary, label, a, input, select, textarea { touch-action: manipulation; }
 button, .nav-item, .stepper-btn, .set-btn, summary, label { user-select: none; }
 
