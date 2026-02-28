@@ -99,10 +99,25 @@ const Logger = {
             CRITICAL: 'color: #fff; background: #f00; padding: 2px 5px'
         };
 
+        // Sentinel: Suppress stack traces in development/production console
+        const safeContext = context ? { ...context } : {};
+        if (safeContext.error && safeContext.error instanceof Error) {
+            safeContext.error = {
+                name: safeContext.error.name,
+                message: safeContext.error.message
+            };
+        } else if (safeContext.error && safeContext.error.stack) {
+            const errClone = { ...safeContext.error };
+            delete errClone.stack;
+            if (safeContext.error.name) errClone.name = safeContext.error.name;
+            if (safeContext.error.message) errClone.message = safeContext.error.message;
+            safeContext.error = errClone;
+        }
+
         console.log(
             `%c[${level}] ${message}`,
             styles[level] || '',
-            context
+            safeContext
         );
 
         // Persist critical errors
@@ -116,7 +131,7 @@ const Logger = {
             try {
                 this.errorCache = JSON.parse(localStorage.getItem(`${STORAGE_PREFIX}errors`) || '[]');
             } catch (e) {
-                console.error('Failed to load error cache:', e);
+                // silent fallback
                 this.errorCache = [];
             }
         }
@@ -176,7 +191,7 @@ const Logger = {
             this._pendingWrite = setTimeout(() => this.flushErrors(), 1000);
 
         } catch (e) {
-            console.error('Failed to persist error:', e);
+            // silent fallback
         }
     },
 
@@ -189,7 +204,7 @@ const Logger = {
             try {
                 localStorage.setItem(`${STORAGE_PREFIX}errors`, JSON.stringify(this.errorCache));
             } catch (e) {
-                console.error('Failed to flush errors:', e);
+                // silent fallback
             }
         }
     },

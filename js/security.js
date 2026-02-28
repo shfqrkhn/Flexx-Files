@@ -6,7 +6,7 @@
 
 import { RECOVERY_STATES, STORAGE_PREFIX, APP_VERSION } from './constants.js';
 
-let Logger = console;
+let Logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
 
 // === INPUT SANITIZATION ===
 const SANITIZE_MAP = {

@@ -131,7 +131,7 @@ export const ScreenReader = {
 
     announce(message, priority = 'polite') {
         if (!this.liveRegion) {
-            console.warn('Screen reader live region not initialized');
+            Logger.warn('Screen reader live region not initialized');
             return;
         }
 

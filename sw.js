@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flexx-v3.9.61';
+const CACHE_NAME = 'flexx-v3.9.62';
 const ASSETS = [
     './', './index.html', './css/styles.css',
     './js/app.js', './js/core.js', './js/config.js',
