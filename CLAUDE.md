@@ -4,7 +4,7 @@
 
 **Flexx Files** is a privacy-first, offline-first Progressive Web App (PWA) for strength training tracking with automatic weight progression. The application runs entirely in the browser with zero external dependencies and no server-side components.
 
-- **Version**: 3.9.62
+- **Version**: 3.9.63
 - **Storage Version**: v3
 - **License**: MIT
 
