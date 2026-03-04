@@ -371,12 +371,25 @@ export const Storage = {
     },
 
     deleteSession(id) {
+        // Sentinel: Prevent data loss if storage is corrupted
+        if (this._isCorrupted) {
+            const msg = 'Storage is corrupted. Cannot modify data.';
+            Logger.critical(msg);
+            throw new Error(msg);
+        }
+
+        if (!this.Transaction.begin()) {
+            Logger.error('Could not start transaction for deleteSession');
+            throw new Error('Transaction failed to start');
+        }
+
         try {
             const sessions = this.getSessions();
             const index = sessions.findIndex(s => s.id === id);
 
             if (index === -1) {
                 Logger.warn(`Session ${id} not found`);
+                this.Transaction.commit(); // Close transaction cleanly
                 return false;
             }
 
@@ -386,11 +399,15 @@ export const Storage = {
 
             this._sessionCache = newSessions; // Update cache
 
+            // Commit transaction after successful cache update
+            this.Transaction.commit();
+
             // Optimization: Non-blocking I/O
             this.schedulePersistence();
             return true;
         } catch (e) {
             Logger.error('Failed to delete session:', { error: e.message });
+            this.Transaction.rollback();
             throw new Error('Failed to delete session. Please try again.');
         }
     },
