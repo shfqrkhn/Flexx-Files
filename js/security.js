@@ -88,7 +88,7 @@ export const Sanitizer = {
                         id: d.id,
                         completed: d.completed
                     };
-                    if (d.val !== undefined) cleanD.val = d.val;
+                    if (d.val !== undefined) cleanD.val = String(d.val);
                     if (d.altUsed !== undefined) cleanD.altUsed = d.altUsed;
                     return cleanD;
                 });
