@@ -422,6 +422,7 @@ function renderDecompress(c) {
         const activeD = activeMap.get(d.id);
         const isChecked = activeD ? activeD.completed : false;
         const val = activeD ? activeD.val : '';
+        const safeVal = Sanitizer.sanitizeString(String(val || ''));
         const altUsed = activeD ? activeD.altUsed : '';
         const displayName = Sanitizer.sanitizeString(altUsed || d.name);
         const vidUrl = altUsed && d.altLinks?.[altUsed] ? d.altLinks[altUsed] : d.video;
@@ -439,7 +440,7 @@ function renderDecompress(c) {
                     <a id="vid-${d.id}" href="${vidUrl}" target="_blank" rel="noopener noreferrer" style="font-size:1.5rem; text-decoration:none" aria-label="Watch video for ${displayName}">🎥</a>
                 </div>
                 <div class="text-xs" style="opacity:0.8; margin-bottom:0.75rem">${d.duration}</div>
-                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${val || ''}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : ''}
+                    ${d.inputLabel ? `<input type="number" id="val-${d.id}" value="${safeVal}" placeholder="${d.inputLabel}" aria-label="${d.inputLabel} for ${d.name}" style="width:100%; padding:1rem; background:var(--bg-secondary); border:none; color:white; margin-bottom:0.5rem" onchange="window.updateDecompress('${d.id}')">` : ''}
                 <label class="checkbox-wrapper" style="cursor:pointer" for="done-${d.id}"><input type="checkbox" class="big-check" id="done-${d.id}" ${isChecked ? 'checked' : ''} onchange="window.updateDecompress('${d.id}')"><span>${I18n.t('exercise.completed')}</span></label>
                 <details style="margin-top:0.5rem; padding-top:0.5rem; border-top:1px solid var(--border)">
                     <summary class="text-xs" style="opacity:0.7; cursor:pointer">${I18n.t('exercise.alternatives')}</summary>
