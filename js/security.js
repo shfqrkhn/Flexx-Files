@@ -30,32 +30,34 @@ export const Sanitizer = {
 
         // Allowlist of root fields
         const clean = {
-            id: session.id,
-            date: session.date,
-            recoveryStatus: session.recoveryStatus,
-            sessionNumber: session.sessionNumber,
-            weekNumber: session.weekNumber,
-            totalVolume: session.totalVolume,
+            id: String(session.id),
+            date: String(session.date),
+            recoveryStatus: String(session.recoveryStatus),
             exercises: [],
             warmup: [],
             cardio: null,
             decompress: null
         };
 
+        // Optional numeric root fields
+        if (session.sessionNumber !== undefined) clean.sessionNumber = Number(session.sessionNumber);
+        if (session.weekNumber !== undefined) clean.weekNumber = Number(session.weekNumber);
+        if (session.totalVolume !== undefined) clean.totalVolume = Number(session.totalVolume);
+
         // Deep scrub exercises
         if (Array.isArray(session.exercises)) {
             clean.exercises = session.exercises.map(ex => {
                 const cleanEx = {
-                    id: ex.id,
-                    name: ex.name,
-                    weight: ex.weight
+                    id: String(ex.id),
+                    name: String(ex.name),
+                    weight: Number(ex.weight)
                 };
                 // Optional fields
-                if (ex.setsCompleted !== undefined) cleanEx.setsCompleted = ex.setsCompleted;
-                if (ex.completed !== undefined) cleanEx.completed = ex.completed;
-                if (ex.usingAlternative !== undefined) cleanEx.usingAlternative = ex.usingAlternative;
-                if (ex.altName !== undefined) cleanEx.altName = ex.altName;
-                if (ex.skipped !== undefined) cleanEx.skipped = ex.skipped;
+                if (ex.setsCompleted !== undefined) cleanEx.setsCompleted = Number(ex.setsCompleted);
+                if (ex.completed !== undefined) cleanEx.completed = Boolean(ex.completed);
+                if (ex.usingAlternative !== undefined) cleanEx.usingAlternative = Boolean(ex.usingAlternative);
+                if (ex.altName !== undefined) cleanEx.altName = String(ex.altName);
+                if (ex.skipped !== undefined) cleanEx.skipped = Boolean(ex.skipped);
                 return cleanEx;
             });
         }
@@ -64,10 +66,10 @@ export const Sanitizer = {
         if (Array.isArray(session.warmup)) {
             clean.warmup = session.warmup.map(w => {
                 const cleanW = {
-                    id: w.id,
-                    completed: w.completed
+                    id: String(w.id),
+                    completed: Boolean(w.completed)
                 };
-                if (w.altUsed !== undefined) cleanW.altUsed = w.altUsed;
+                if (w.altUsed !== undefined) cleanW.altUsed = String(w.altUsed);
                 return cleanW;
             });
         }
@@ -75,8 +77,8 @@ export const Sanitizer = {
         // Deep scrub cardio
         if (session.cardio && typeof session.cardio === 'object') {
             clean.cardio = {
-                type: session.cardio.type,
-                completed: session.cardio.completed
+                type: String(session.cardio.type),
+                completed: Boolean(session.cardio.completed)
             };
         }
 
@@ -85,16 +87,17 @@ export const Sanitizer = {
             if (Array.isArray(session.decompress)) {
                 clean.decompress = session.decompress.map(d => {
                     const cleanD = {
-                        id: d.id,
-                        completed: d.completed
+                        id: String(d.id),
+                        completed: Boolean(d.completed)
                     };
-                    if (d.val !== undefined) cleanD.val = String(d.val);
-                    if (d.altUsed !== undefined) cleanD.altUsed = d.altUsed;
+                    if (d.val !== undefined && d.val !== null) cleanD.val = String(d.val);
+                    else if (d.val === null) cleanD.val = null;
+                    if (d.altUsed !== undefined) cleanD.altUsed = String(d.altUsed);
                     return cleanD;
                 });
             } else if (typeof session.decompress === 'object') {
                 clean.decompress = {
-                    completed: session.decompress.completed
+                    completed: Boolean(session.decompress.completed)
                 };
             }
         }
@@ -205,6 +208,23 @@ export const Validator = {
             return { valid: false, errors: [`Missing fields: ${missing.join(', ')}`] };
         }
 
+        // Validate types for ID, date, and recoveryStatus to prevent coercion bypasses
+        if (typeof session.id !== 'string') {
+            Logger.error('Invalid session: ID must be a string');
+            AuditLog.log('failed_validation', { type: 'session', error: 'bad_id_type' });
+            return { valid: false, errors: ['Invalid session ID type'] };
+        }
+        if (typeof session.date !== 'string') {
+            Logger.error('Invalid session: Date must be a string');
+            AuditLog.log('failed_validation', { type: 'session', error: 'bad_date_type' });
+            return { valid: false, errors: ['Invalid date type'] };
+        }
+        if (typeof session.recoveryStatus !== 'string') {
+            Logger.error('Invalid session: Recovery status must be a string');
+            AuditLog.log('failed_validation', { type: 'session', error: 'bad_recovery_type' });
+            return { valid: false, errors: ['Invalid recovery status type'] };
+        }
+
         // Validate ID format (UUID)
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.id)) {
             Logger.error('Invalid session: bad ID format', { id: session.id });
@@ -224,6 +244,17 @@ export const Validator = {
             Logger.error('Invalid session: bad recovery status', { status: session.recoveryStatus });
             AuditLog.log('failed_validation', { type: 'session', error: 'bad_recovery', status: session.recoveryStatus });
             return { valid: false, errors: ['Invalid recovery status'] };
+        }
+
+        // Validate optional numeric fields
+        if (session.sessionNumber !== undefined && (typeof session.sessionNumber !== 'number' || isNaN(session.sessionNumber))) {
+            return { valid: false, errors: ['sessionNumber must be a number'] };
+        }
+        if (session.weekNumber !== undefined && (typeof session.weekNumber !== 'number' || isNaN(session.weekNumber))) {
+            return { valid: false, errors: ['weekNumber must be a number'] };
+        }
+        if (session.totalVolume !== undefined && (typeof session.totalVolume !== 'number' || isNaN(session.totalVolume))) {
+            return { valid: false, errors: ['totalVolume must be a number'] };
         }
 
         // Validate exercises array
