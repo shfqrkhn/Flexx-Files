@@ -127,18 +127,27 @@ const Timer = {
         const timerVal = document.getElementById('timer-val');
         if (!timerVal) {
             Logger.error('Timer value element not found');
+            this.stop();
             return;
         }
         timerVal.textContent = `${m}:${s.toString().padStart(2,'0')}`;
     },
     stop() {
-        if (this.interval) clearInterval(this.interval);
-        const timerDock = document.getElementById('timer-dock');
-        if (!timerDock) {
-            Logger.error('Timer dock element not found');
-            return;
+        if (this.interval) {
+            clearInterval(this.interval);
+            this.interval = null;
         }
-        timerDock.classList.remove('active');
+        this.endTime = null;
+
+        const timerVal = document.getElementById('timer-val');
+        if (timerVal) {
+            const m = Math.floor(CONST.DEFAULT_REST_TIMER_SECONDS / 60);
+            const s = CONST.DEFAULT_REST_TIMER_SECONDS % 60;
+            timerVal.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        const timerDock = document.getElementById('timer-dock');
+        if (timerDock) timerDock.classList.remove('active');
     }
 };
 
@@ -781,8 +790,8 @@ window.togS = (ex, i, max) => {
 
         if(isCompleted) {
             Haptics.success();
-            // Auto-start rest timer if not the last set
-            if(i < max-1) Timer.start();
+            // Auto-start rest timer after every completed set (including last set)
+            Timer.start();
         }
 
         // Persistence: Update active session state
@@ -1012,6 +1021,9 @@ window.finish = async () => {
         Logger.debug('Session save performance', { duration: `${saveTime?.toFixed(2)}ms` });
 
         ScreenReader.announce(`Workout completed successfully. Session ${savedSession.sessionNumber} saved.`, 'assertive');
+
+        // Ensure no intra-set timer keeps running after session completion
+        Timer.stop();
 
         Haptics.success(); // Tactile feedback for completion
         State.view = 'history';
