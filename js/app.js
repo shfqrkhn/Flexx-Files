@@ -13,8 +13,10 @@ const Modal = {
     body: document.getElementById('modal-body'),
     actions: document.getElementById('modal-actions'),
     resolve: null,
+    previousFocus: null,
     show(opts) {
         return new Promise((resolve) => {
+            this.previousFocus = document.activeElement;
             // Null checks for modal elements
             if (!this.el || !this.title || !this.body || !this.actions) {
                 Logger.error('Modal elements not found in DOM');
@@ -55,11 +57,16 @@ const Modal = {
         if (!this.el) {
             Logger.error('Modal element not found');
             if (this.resolve) this.resolve(res);
+            if (this.previousFocus) this.previousFocus.focus();
             return;
         }
         this.el.classList.remove('active');
         this.el.setAttribute('aria-hidden', 'true');
         if (this.resolve) this.resolve(res);
+        if (this.previousFocus) {
+            this.previousFocus.focus();
+            this.previousFocus = null;
+        }
     }
 };
 
