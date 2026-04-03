@@ -27,6 +27,9 @@
     <input type="text" id="test-input">
     <select id="test-select"><option>Option</option></select>
     <textarea id="test-textarea"></textarea>
+    <div role="button" id="test-role-button">Role Button</div>
+    <div role="tab" id="test-role-tab">Role Tab</div>
+    <div role="switch" id="test-role-switch">Role Switch</div>
 
     <script>
         const selectors = [
@@ -40,7 +43,10 @@
             'a',
             'input',
             'select',
-            'textarea'
+            'textarea',
+            '[role="button"]',
+            '[role="tab"]',
+            '[role="switch"]'
         ];
 
         const resultsDiv = document.getElementById('results');
