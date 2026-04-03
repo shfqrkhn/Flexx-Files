@@ -13,7 +13,10 @@ const REQUIRED_SELECTORS = [
     'a',
     'input',
     'select',
-    'textarea'
+    'textarea',
+    '[role="button"]',
+    '[role="tab"]',
+    '[role="switch"]'
 ];
 const REQUIRED_PROPERTY = 'touch-action';
 const REQUIRED_VALUE = 'manipulation';
